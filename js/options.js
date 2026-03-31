@@ -23,7 +23,11 @@
       if (queryString.referer) {
         $("button.close").show()
           .click(function() {
-            history.back();
+            if (window.parent !== window) {
+              window.parent.postMessage("closeSettings", "*")
+            } else {
+              history.back()
+            }
           })
       }
     })
@@ -111,13 +115,24 @@
 
 
 
+  // Resolve origin of the active tab once; used to key per-site rate
+  const activeOriginPromise = getActiveTab()
+    .then(tab => tab && tab.url ? new URL(tab.url).origin : null)
+    .catch(() => null)
+
+  function getRateSettingKey(origin, voiceName) {
+    if (origin && origin !== "null") return "rate:" + origin
+    return "rate" + (voiceName || "")
+  }
+
   //rate
-  const rateSliderPromise = domReadyPromise
-    .then(() => {
+  const rateSliderPromise = Promise.all([domReadyPromise, activeOriginPromise])
+    .then(([, origin]) => {
       const slider = createSlider($("#rate").get(0), {
           onChange(value) {
             const rate = Math.pow($("#rate").data("pow"), value)
-            updateSetting("rate" + $("#voices").val(), Number(rate.toFixed(3)))
+            const key = getRateSettingKey(origin, $("#voices").val())
+            updateSetting(key, Number(rate.toFixed(3)))
           }
         })
       $("#rate-edit-button")
@@ -131,19 +146,22 @@
           else if (val < .1) $(this).val(.1);
           else if (val > 10) $(this).val(10);
           else $("#rate-edit-button").hide();
-          updateSetting("rate" + $("#voices").val(), Number($(this).val()))
+          const key = getRateSettingKey(origin, $("#voices").val())
+          updateSetting(key, Number($(this).val()))
         });
-      return slider
+      return { slider, origin }
     })
 
-  const rateObservable = observeSetting("voiceName")
-    .pipe(
-      rxjs.switchMap(voiceName => observeSetting("rate" + (voiceName || ""))),
-      rxjs.share()
-    )
+  const rateObservable = rxjs.combineLatest([
+    observeSetting("voiceName"),
+    rxjs.from(activeOriginPromise)
+  ]).pipe(
+    rxjs.switchMap(([voiceName, origin]) => observeSetting(getRateSettingKey(origin, voiceName))),
+    rxjs.share()
+  )
 
   rxjs.combineLatest([rateObservable, rateSliderPromise])
-    .subscribe(([rate, slider]) => {
+    .subscribe(([rate, {slider}]) => {
       slider.setValue(Math.log(rate || defaults.rate) / Math.log($("#rate").data("pow")))
       $("#rate-input").val(rate || defaults.rate)
     })
@@ -151,6 +169,24 @@
   rxjs.combineLatest([observeSetting("voiceName"), rateObservable, domReadyPromise])
     .subscribe(([voiceName, rate]) => {
       $("#rate-warning").toggle((!voiceName || isNativeVoice({voiceName})) && rate > 2)
+    })
+
+
+
+  //rateEN
+  const rateEnSliderPromise = domReadyPromise
+    .then(() => {
+      return createSlider($("#rate-en").get(0), {
+        onChange(value) {
+          const rate = Math.pow($("#rate-en").data("pow"), value)
+          updateSettings({rateEN: Number(rate.toFixed(3))})
+        }
+      })
+    })
+
+  rxjs.combineLatest([observeSetting("rateEN"), rateEnSliderPromise])
+    .subscribe(([rateEN, slider]) => {
+      slider.setValue(Math.log(rateEN || defaults.rateEN) / Math.log($("#rate-en").data("pow")))
     })
 
 
@@ -297,7 +333,10 @@
   settingsChange$
     .subscribe(() => {
       showConfirmation()
-      bgPageInvoke("stop").catch(err => "OK")
+      // When embedded as iframe in popup, don't stop — popup will restart on close
+      if (window.parent === window) {
+        bgPageInvoke("stop").catch(err => "OK")
+      }
     })
 
 

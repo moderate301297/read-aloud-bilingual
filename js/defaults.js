@@ -20,7 +20,7 @@ var config = {
     iw: 'he'
   },
   unsupportedSites: [
-    'https://chromewebstore.google.com',
+    'https://chrome.google.com/webstore',
     'https://addons.mozilla.org',
     'chrome:',
     'about:',
@@ -34,6 +34,7 @@ var config = {
 
 var defaults = {
   rate: 1.0,
+  rateEN: 1.0,
   pitch: 1.0,
   volume: 1.0,
   showHighlighting: 1,
@@ -111,7 +112,7 @@ const settingsChange$ = rxjs.fromEventPattern(
 
 function getSettings(names) {
   return new Promise(function(fulfill) {
-    brapi.storage.local.get(names || ["voiceName", "rate", "pitch", "volume", "showHighlighting", "languages", "highlightFontSize", "highlightWindowSize", "preferredVoices", "useEmbeddedPlayer", "fixBtSilenceGap", "darkMode"], fulfill);
+    brapi.storage.local.get(names || ["voiceName", "rate", "rateEN", "pitch", "volume", "showHighlighting", "languages", "highlightFontSize", "highlightWindowSize", "preferredVoices", "useEmbeddedPlayer", "fixBtSilenceGap", "darkMode", "readMode"], fulfill);
   });
 }
 
@@ -123,7 +124,7 @@ function updateSettings(items) {
 
 function clearSettings(names) {
   return new Promise(function(fulfill) {
-    brapi.storage.local.remove(names || ["voiceName", "rate", "pitch", "volume", "showHighlighting", "languages", "highlightFontSize", "highlightWindowSize", "preferredVoices", "useEmbeddedPlayer", "fixBtSilenceGap", "darkMode"], fulfill);
+    brapi.storage.local.remove(names || ["voiceName", "rate", "rateEN", "pitch", "volume", "showHighlighting", "languages", "highlightFontSize", "highlightWindowSize", "preferredVoices", "useEmbeddedPlayer", "fixBtSilenceGap", "darkMode", "readMode"], fulfill);
   });
 }
 

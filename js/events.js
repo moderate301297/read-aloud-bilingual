@@ -445,7 +445,13 @@ async function injectPlayer(tab) {
   else {
     await createPlayerTab()
   }
-  await promise
+  // Timeout fallback: if playerCheckIn never arrives (e.g. SW restarting when
+  // the new tab loads), don't hang forever — the player tab is likely still
+  // alive and will respond to sendToPlayer messages directly.
+  await Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(resolve, 10000))
+  ])
 }
 
 function createPlayerFrame() {
@@ -471,7 +477,10 @@ async function createPlayerTab() {
 
 async function sendToPlayer(message) {
   message.dest = "player"
-  const result = await brapi.runtime.sendMessage(message)
+  const result = await Promise.race([
+    brapi.runtime.sendMessage(message),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Player timeout")), 3000))
+  ])
   if (result && result.error) throw result.error
   else return result
 }

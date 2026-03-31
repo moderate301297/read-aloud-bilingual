@@ -91,9 +91,11 @@ function Speech(texts, options) {
   const isLoading$ = isLoadingSubject.pipe(
     rxjs.distinctUntilChanged(),
     rxjs.scan((previous$, isLoading) =>
-      rxjs.iif(() => previous$ && isLoading, rxjs.timer(2000), rxjs.of(0)).pipe(
-        rxjs.map(() => isLoading)
-      ),
+      rxjs.iif(
+        () => previous$ && isLoading,
+        rxjs.timer(2000),
+        isLoading ? rxjs.timer(400) : rxjs.of(0)
+      ).pipe(rxjs.map(() => isLoading)),
       null
     ),
     rxjs.switchAll(),
@@ -159,6 +161,7 @@ function Speech(texts, options) {
       isLoadingSubject.next(event.type == "load")
       switch (event.type) {
         case "start":
+          console.log("[Speech] chunk start, index=" + playlist.getIndex() + " of " + texts.length)
           if (event.sentenceStartIndicies) {
             enginePlaybackState = {
               texts: event.sentenceStartIndicies.map((startIndex, i, arr) => texts[0].slice(startIndex, arr[i+1])),
@@ -176,6 +179,7 @@ function Speech(texts, options) {
           }
           break
         case "end":
+          console.log("[Speech] chunk end, index=" + playlist.getIndex() + " of " + texts.length + ", enginePlaybackState=" + !!enginePlaybackState)
           if (enginePlaybackState) {
             cmd$.complete()
           } else {
@@ -185,10 +189,11 @@ function Speech(texts, options) {
       }
     },
     complete: () => {
+      console.log("[Speech] complete fired, onEnd set=" + !!this.onEnd)
       if (this.onEnd) this.onEnd()
     },
     error: err => {
-      if (err.name != "CancellationException") {
+      if (!err || err.name != "CancellationException") {
         if (this.onEnd) this.onEnd(err)
       }
     }

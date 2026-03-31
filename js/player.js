@@ -175,8 +175,18 @@ if (queryString.has("opener")) {
   brapi.runtime.sendMessage({dest: queryString.get("opener"), method: "playerCheckIn"})
     .catch(console.error)
 } else {
-  bgPageInvoke("playerCheckIn")
-    .catch(console.error)
+  // Retry playerCheckIn in case the service worker is still restarting
+  ;(async function checkInWithSW() {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await bgPageInvoke("playerCheckIn")
+        return
+      } catch (err) {
+        if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+      }
+    }
+    console.error("playerCheckIn: failed to reach service worker after 5 attempts")
+  })()
 }
 
 document.addEventListener("DOMContentLoaded", initialize)
@@ -185,6 +195,7 @@ document.addEventListener("DOMContentLoaded", initialize)
 
 async function initialize() {
   setI18nText()
+  setupMediaSession()
 
   $("#hidethistab-link")
     .toggle(canUseEmbeddedPlayer() && !(await getSettings()).useEmbeddedPlayer)
@@ -201,6 +212,25 @@ async function initialize() {
           .catch(console.error)
       }
     })
+}
+
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'Read Aloud',
+    artist: 'Read Aloud',
+    artwork: [{src: brapi.runtime.getURL('img/icon.png'), sizes: '128x128', type: 'image/png'}]
+  })
+  navigator.mediaSession.setActionHandler('play', function() { resume() })
+  navigator.mediaSession.setActionHandler('pause', function() { pause() })
+  navigator.mediaSession.setActionHandler('stop', function() { stop() })
+  navigator.mediaSession.setActionHandler('previoustrack', function() { rewind() })
+  navigator.mediaSession.setActionHandler('nexttrack', function() { forward() })
+}
+
+function setMediaSessionState(state) {
+  if (!('mediaSession' in navigator)) return
+  navigator.mediaSession.playbackState = state
 }
 
 function playText(text, opts) {
@@ -223,6 +253,7 @@ function playText(text, opts) {
 }
 
 function playTab() {
+  console.log("[Player] playTab() activeDoc=" + !!activeDoc)
   playbackError = null
   if (!activeDoc) {
     openDoc(new TabSource(), function(err) {
@@ -241,6 +272,7 @@ function playTab() {
 }
 
 function stop() {
+  console.log("[Player] stop() activeDoc=" + !!activeDoc)
   if (activeDoc) {
     activeDoc.stop();
     closeDoc();
@@ -249,11 +281,15 @@ function stop() {
 }
 
 function pause() {
+  console.log("[Player] pause() activeDoc=" + !!activeDoc)
+  setMediaSessionState("paused")
   if (activeDoc) return activeDoc.pause();
   else return Promise.resolve();
 }
 
 function resume() {
+  console.log("[Player] resume() activeDoc=" + !!activeDoc)
+  setMediaSessionState("playing")
   if (activeDoc) return activeDoc.play()
   else return Promise.resolve()
 }
@@ -281,13 +317,14 @@ function getPlaybackState() {
 }
 
 function openDoc(source, onEnd) {
-  activeDoc = new Doc(source, function(err) {
+  const doc = activeDoc = new Doc(source, function(err) {
     handleError(err);
-    closeDoc();
+    if (activeDoc === doc) closeDoc();
     if (typeof onEnd == "function") onEnd(err);
   })
   idleSubject.next(false)
   lastUrlPromise = Promise.resolve(source.getUri())
+  setMediaSessionState("playing")
 }
 
 function closeDoc() {
@@ -295,6 +332,7 @@ function closeDoc() {
     activeDoc.close();
     activeDoc = null;
     idleSubject.next(true)
+    setMediaSessionState("none")
   }
 }
 
@@ -342,19 +380,31 @@ function playAudio(urlPromise, options, playbackState$) {
     return playAudioOffscreen(urlPromise, options, playbackState$)
   }
   else {
-    return playAudioHere(requestAudioPlaybackPermission().then(() => urlPromise), options, playbackState$)
+    return playAudioHere(requestAudioPlaybackPermission().then(() => urlPromise), options, playbackState$).pipe(
+      rxjs.catchError(err => {
+        if (err.message === 'NotAllowedError') {
+          requestAudioPlaybackPermission = makeAudioPlaybackPermissionRequest()
+          return playAudioHere(requestAudioPlaybackPermission().then(() => urlPromise), options, playbackState$)
+        }
+        return rxjs.throwError(() => err)
+      })
+    )
   }
 }
 
-var requestAudioPlaybackPermission = lazy(async function() {
-  const thisTab = await brapi.tabs.getCurrent()
-  const prevTab = await brapi.tabs.query({windowId: thisTab.windowId, active: true}).then(tabs => tabs[0])
-  await brapi.tabs.update(thisTab.id, {active: true})
-  $("#dialog-backdrop, #audio-playback-permission-dialog").show()
-  await new Audio(brapi.runtime.getURL("sound/silence.mp3")).play()
-  $("#dialog-backdrop, #audio-playback-permission-dialog").hide()
-  await brapi.tabs.update(prevTab.id, {active: true})
-})
+function makeAudioPlaybackPermissionRequest() {
+  return lazy(async function() {
+    const thisTab = await brapi.tabs.getCurrent()
+    const prevTab = await brapi.tabs.query({windowId: thisTab.windowId, active: true}).then(tabs => tabs[0])
+    await brapi.tabs.update(thisTab.id, {active: true})
+    $("#dialog-backdrop, #audio-playback-permission-dialog").show()
+    await new Audio(brapi.runtime.getURL("sound/silence.mp3")).play()
+    $("#dialog-backdrop, #audio-playback-permission-dialog").hide()
+    await brapi.tabs.update(prevTab.id, {active: true})
+  })
+}
+
+var requestAudioPlaybackPermission = makeAudioPlaybackPermissionRequest()
 
 async function createOffscreen() {
   const readyPromise = new Promise(f => messageHandlers.offscreenCheckIn = f)

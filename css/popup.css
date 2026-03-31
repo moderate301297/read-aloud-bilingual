@@ -61,6 +61,10 @@ body.is-popup #highlight {
   position: relative;
   box-sizing: border-box;
 }
+#highlight > span {
+  display: block;
+  margin-bottom: 0.4em;
+}
 #highlight span.active {
   background-color: yellow;
 }
@@ -129,7 +133,75 @@ body:not(.is-popup) #highlight {
 body:not(.is-popup) #toolbar .btn-group.window-size {
   display: none;
 }
+#top-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 2px;
+}
 
+#top-bar #btnSettings {
+  padding: .25rem .4rem;
+  line-height: 1;
+}
+
+#top-bar #btnSettings .material-icons {
+  font-size: 1em;
+  vertical-align: middle;
+}
+
+#toggle-read-mode {
+  white-space: nowrap;
+}
+#toggle-read-mode.en-active {
+  background-color: #2980b9;
+  color: #fff;
+  border-color: #2471a3;
+}
+.dark-mode #toggle-read-mode.en-active {
+  background-color: #1a5a8a;
+  border-color: #1a4a7a;
+}
+
+
+/* Settings slide-in panel */
+#settings-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  z-index: 100;
+}
+
+#settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  background: #fff;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.2);
+  z-index: 101;
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+  overflow: hidden;
+}
+
+#settings-panel.open {
+  transform: translateX(0);
+}
+
+#settings-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.dark-mode #settings-panel {
+  background: #2a2a2a;
+}
 
 #footer {
   text-align: center;
@@ -151,6 +223,39 @@ body:not(.is-popup) #toolbar .btn-group.window-size {
 }
 .dark-mode #status {
   color: #f88;
+}
+
+#translate-popup {
+  display: none;
+  background: rgba(232, 244, 252, 0.97);
+  border: 1px solid #90bfe0;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  padding: 7px 12px;
+  font-size: .88em;
+  color: #1a3a5c;
+  line-height: 1.5em;
+  max-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+}
+.translate-label {
+  display: inline-block;
+  font-size: .72em;
+  font-weight: 700;
+  color: #2980b9;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.dark-mode #translate-popup {
+  background: rgba(20, 40, 60, 0.97);
+  border-color: #2a5a8a;
+  color: #b0d0f0;
+}
+.dark-mode .translate-label {
+  color: #5aafe0;
 }
 
 #attribution {

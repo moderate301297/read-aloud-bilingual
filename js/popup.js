@@ -68,9 +68,17 @@ async function init() {
   $("#decrease-window-size").click(changeWindowSize.bind(null, -1));
   $("#increase-window-size").click(changeWindowSize.bind(null, +1));
   $("#toggle-dark-mode").click(toggleDarkMode);
+  $("#toggle-read-mode").click(toggleReadMode);
+  $("#settings-backdrop").click(closeSettings);
+
+  // Close settings panel when options.html iframe clicks its close button
+  window.addEventListener("message", function(e) {
+    if (e.data === "closeSettings") closeSettings()
+  })
 
   refreshSize();
   checkAnnouncements();
+  getSettings(["readMode"]).then(s => updateReadModeButton(s.readMode || "english"));
 
   const {state} = await bgPageInvoke("getPlaybackState")
   if (state == "PAUSED" || state == "STOPPED") onPlay()
@@ -164,19 +172,20 @@ async function updateButtons() {
   engineInitializingSubject.next(state == "LOADING" && speech?.engine)
 
   $("#imgLoading").toggle(state == "LOADING");
-  $("#btnSettings").toggle(state == "STOPPED");
   $("#btnPlay").toggle(state == "PAUSED" || state == "STOPPED");
   $("#btnPause").toggle(state == "PLAYING");
   $("#btnStop").toggle(state == "PAUSED" || state == "PLAYING" || state == "LOADING");
   $("#btnForward, #btnRewind").toggle(state == "PLAYING" || state == "PAUSED");
 
-  if (showHighlighting && (state == "LOADING" || state == "PAUSED" || state == "PLAYING") && speech) {
+  if (showHighlighting && speech) {
     $("#highlight, #toolbar").show()
     updateHighlighting(speech)
   }
-  else {
+  else if (!showHighlighting || state === "STOPPED") {
     $("#highlight, #toolbar").hide()
+    hideTranslatePopup()
   }
+  // else: brief transition (LOADING with no speech) — keep current visibility
 }
 
 function updateHighlighting(speech) {
@@ -198,6 +207,7 @@ function updateHighlighting(speech) {
 
   const pos = speech.position
   if (!elem.data("position") || positionDiffers(elem.data("position"), pos)) {
+    const prevPos = elem.data("position")
     elem.data("position", pos);
     elem.find(".active").removeClass("active");
     const child = elem.children().eq(pos.index)
@@ -224,6 +234,9 @@ function updateHighlighting(speech) {
     else {
       child.addClass("active")
       scrollIntoView(child, elem)
+    }
+    if (!prevPos || prevPos.index !== pos.index) {
+      showTranslationFor(speech.texts[pos.index], pos.index)
     }
   }
 }
@@ -290,8 +303,35 @@ function onStop() {
     .catch(handleError)
 }
 
+var settingsSavedChunkIndex = null
+
 function onSettings() {
-  location.href = "options.html?referer=popup.html";
+  bgPageInvoke("getPlaybackState")
+    .then(function(stateInfo) {
+      const pos = stateInfo.speechInfo && stateInfo.speechInfo.position
+      settingsSavedChunkIndex = pos ? pos.index : null
+    })
+    .catch(function() { settingsSavedChunkIndex = null })
+  $("#settings-panel").addClass("open")
+  $("#settings-backdrop").show()
+}
+
+function closeSettings() {
+  $("#settings-panel").removeClass("open")
+  $("#settings-backdrop").hide()
+
+  const savedIndex = settingsSavedChunkIndex
+  settingsSavedChunkIndex = null
+
+  bgPageInvoke("stop")
+    .catch(function() {})
+    .then(function() { return bgPageInvoke("playTab", queryString.tab ? [Number(queryString.tab)] : []) })
+    .then(function() {
+      if (savedIndex != null && savedIndex > 0) {
+        return bgPageInvoke("seek", [savedIndex])
+      }
+    })
+    .catch(handleError)
 }
 
 function onForward() {
@@ -407,4 +447,83 @@ function showAnnouncement(ann) {
 function toggleDarkMode() {
   const darkMode = document.body.classList.toggle("dark-mode")
   updateSettings({darkMode})
+}
+
+async function toggleReadMode() {
+  const { readMode } = await getSettings(["readMode"])
+  const newMode = readMode === "english" ? "original" : "english"
+  await updateSettings({ readMode: newMode })
+  updateReadModeButton(newMode)
+  bgPageInvoke("stop").catch(() => {})
+  setTimeout(onPlay, 100)
+}
+
+function updateReadModeButton(mode) {
+  const isEN = mode === "english"
+  $("#toggle-read-mode")
+    .text(isEN ? "Gốc+EN" : "Gốc")
+    .toggleClass("en-active", isEN)
+}
+
+
+
+var lastTranslatedKey = null
+var translateDebounce = null
+const popupTranslateCache = new Map()
+
+async function translateText(text) {
+  if (popupTranslateCache.has(text)) return popupTranslateCache.get(text)
+  const result = await translateWithGemini(text) || await translateWithGoogle(text)
+  if (result) popupTranslateCache.set(text, result)
+  return result
+}
+
+async function translateWithGemini(text) {
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=AIzaSyDtN1wHDtdoOiaIhq2rMg8_ZXBDbRdJr1I"
+    const raw = await ajaxPost(url, {
+      contents: [{parts: [{text: "Translate to English (return only the translation, no explanation):\n" + text}]}]
+    }, "json")
+    const data = JSON.parse(raw)
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null
+  } catch(err) {
+    if (!err.message.includes("429")) console.error("Gemini translation error:", err)
+    return null
+  }
+}
+
+async function translateWithGoogle(text) {
+  try {
+    const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + encodeURIComponent(text.slice(0, 500))
+    const data = await ajaxGet({url, responseType: "json"})
+    if (data && data[0]) return data[0].filter(Boolean).map(item => item[0]).filter(Boolean).join("").trim() || null
+  } catch(err) {
+    console.error("Google translation error:", err)
+  }
+  return null
+}
+
+function showTranslationFor(text, key) {
+  const popup = $("#translate-popup")
+  const isNewKey = key !== lastTranslatedKey
+  if (isNewKey) {
+    lastTranslatedKey = key
+    // Keep previous translation visible while loading new one
+  }
+  popup.show()
+  if (!isNewKey) return
+  clearTimeout(translateDebounce)
+  translateDebounce = setTimeout(async () => {
+    if (key !== lastTranslatedKey) return
+    const translated = await translateText(text)
+    if (key === lastTranslatedKey && translated) {
+      $("#translate-text").text(translated)
+    }
+  }, 300)
+}
+
+function hideTranslatePopup() {
+  $("#translate-popup").hide()
+  lastTranslatedKey = null
+  clearTimeout(translateDebounce)
 }

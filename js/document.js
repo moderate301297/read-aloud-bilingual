@@ -131,6 +131,7 @@ function Doc(source, onEnd) {
   var info;
   var currentIndex;
   var activeSpeech;
+  var bilingualChunks = null;
   var ready = source.ready
     .then(function(result) {info = result})
   var foundText;
@@ -171,6 +172,7 @@ function Doc(source, onEnd) {
   }
 
   async function readCurrent(rewinded) {
+    console.log("[Doc] readCurrent index=" + currentIndex + " activeSpeech=" + !!activeSpeech)
     const texts = await source.getTexts(currentIndex).catch(err => null)
     await wait(playbackState, "resumed")
     if (texts) {
@@ -184,6 +186,7 @@ function Doc(source, onEnd) {
       }
     }
     else {
+      console.log("[Doc] readCurrent → no more texts → onEnd")
       if (!foundText) throw new Error(JSON.stringify({code: "error_no_text"}))
       if (onEnd) onEnd()
     }
@@ -196,29 +199,159 @@ function Doc(source, onEnd) {
       await wait(playbackState, "resumed")
       info.detectedLang = lang || "";
     }
+    const { readMode } = await getSettings(["readMode"])
     if (activeSpeech) return;
-    activeSpeech = await getSpeech(texts);
+    const isBilingual = (readMode || "english") === "english"
+    if (isBilingual) {
+      return readBilingualTexts(texts, 0, rewinded)
+    }
+    bilingualChunks = null
+    activeSpeech = await getSpeech(texts, readMode);
     await wait(playbackState, "resumed")
     activeSpeech.onEnd = function(err) {
       if (err) {
         if (onEnd) onEnd(err);
-      }
-      else {
+      } else {
         activeSpeech = null;
         currentIndex++;
         readCurrent()
-          .catch(function(err) {
-            if (onEnd) onEnd(err)
-          })
+          .catch(function(err) { if (onEnd) onEnd(err) })
       }
     };
     if (rewinded) await activeSpeech.gotoEnd();
     return activeSpeech.play();
   }
 
+  function patchBilingualGetInfo(speech, fullTexts, index) {
+    const orig = speech.getInfo
+    speech.getInfo = function() {
+      const info = orig()
+      return { ...info, texts: fullTexts, position: { index } }
+    }
+  }
+
+  // Entry point: split paragraphs into sentence-level chunks, then process each as VN→EN
+  async function readBilingualTexts(texts, textIndex, rewinded) {
+    const chunks = texts.slice(textIndex).filter(Boolean).flatMap(splitIntoSentenceChunks)
+    bilingualChunks = chunks
+    console.log("[Bilingual] chunks word counts:", chunks.map(function(c) { return c.split(/\s+/).length }))
+    return readBilingualChunks(chunks, 0, rewinded)
+  }
+
+  // Split text into sentences (1 sentence = 1 chunk), hard cap at MAX_WORDS per chunk
+  function splitIntoSentenceChunks(text) {
+    const MAX_WORDS = 200
+    // Split on ASCII and full-width sentence-ending punctuation followed by whitespace
+    const sentences = text.split(/(?<=[.!?。！？])\s+/).map(function(s) { return s.trim() }).filter(Boolean)
+    const result = []
+    for (var i = 0; i < sentences.length; i++) {
+      var words = sentences[i].split(/\s+/)
+      if (words.length <= MAX_WORDS) {
+        result.push(sentences[i])
+      } else {
+        // Hard cap: slice into MAX_WORDS word blocks
+        for (var j = 0; j < words.length; j += MAX_WORDS) {
+          result.push(words.slice(j, j + MAX_WORDS).join(' '))
+        }
+      }
+    }
+    return result.length > 0 ? result : [text]
+  }
+
+  // Process flat chunk array: for each chunk play VN → EN, with 1-chunk look-ahead
+  async function readBilingualChunks(chunks, chunkIndex, rewinded, precomputedEnSpeechPromise) {
+    console.log("[Bilingual] readBilingualChunks chunkIndex=" + chunkIndex + "/" + chunks.length + " words=" + (chunks[chunkIndex] ? chunks[chunkIndex].split(/\s+/).length : 0) + " activeSpeech=" + !!activeSpeech)
+    while (chunkIndex < chunks.length && !chunks[chunkIndex]) chunkIndex++
+    if (chunkIndex >= chunks.length) {
+      console.log("[Bilingual] all chunks done → next page")
+      currentIndex++
+      return readCurrent()
+    }
+    await wait(playbackState, "resumed")
+    if (activeSpeech) { console.log("[Bilingual] activeSpeech exists → skip"); return }
+    const chunk = [chunks[chunkIndex]]
+    activeSpeech = await getSpeech(chunk, "original")
+    patchBilingualGetInfo(activeSpeech, chunks, chunkIndex)
+    await wait(playbackState, "resumed")
+
+    // Use pre-computed EN promise if passed in, otherwise fire new prefetch
+    const enSpeechPromise = precomputedEnSpeechPromise || translateTexts(chunk)
+      .then(function(translatedTexts) { return getSpeech(translatedTexts, "english") })
+      .catch(function(err) {
+        console.error("[Bilingual] EN prefetch error:", err)
+        return null
+      })
+
+    // Prefetch NEXT chunk's EN in background while current VN plays (1-chunk look-ahead)
+    let nextChunkIndex = chunkIndex + 1
+    while (nextChunkIndex < chunks.length && !chunks[nextChunkIndex]) nextChunkIndex++
+    const nextEnSpeechPromise = nextChunkIndex < chunks.length
+      ? translateTexts([chunks[nextChunkIndex]])
+          .then(function(translatedTexts) { return getSpeech(translatedTexts, "english") })
+          .catch(function(err) {
+            console.error("[Bilingual] EN next-prefetch error:", err)
+            return null
+          })
+      : null
+
+    activeSpeech.onEnd = function(err) {
+      console.log("[Bilingual] Gốc onEnd err=" + (err ? err.message : null))
+      if (err) {
+        if (onEnd) onEnd(err)
+      } else {
+        activeSpeech = null
+        enSpeechPromise
+          .then(async function(enSpeech) {
+            if (!enSpeech) throw new Error("EN prefetch failed")
+            if (activeSpeech) { console.log("[Bilingual] EN: activeSpeech race → stop EN"); enSpeech.stop(); return }
+            activeSpeech = enSpeech
+            patchBilingualGetInfo(activeSpeech, chunks, chunkIndex)
+            await wait(playbackState, "resumed")
+            activeSpeech.onEnd = function(err) {
+              console.log("[Bilingual] EN onEnd err=" + (err ? err.message : null))
+              if (err) {
+                if (onEnd) onEnd(err)
+              } else {
+                activeSpeech = null
+                readBilingualChunks(chunks, chunkIndex + 1, false, nextEnSpeechPromise)
+                  .catch(function(err) { if (onEnd) onEnd(err) })
+              }
+            }
+            console.log("[Bilingual] EN play")
+            return activeSpeech.play()
+          })
+          .catch(function(err) {
+            console.error("[Bilingual] EN error, skipping:", err)
+            activeSpeech = null
+            readBilingualChunks(chunks, chunkIndex + 1, false, nextEnSpeechPromise)
+              .catch(function(err2) { if (onEnd) onEnd(err2) })
+          })
+      }
+    }
+    console.log("[Bilingual] Gốc play chunkIndex=" + chunkIndex)
+    if (rewinded && chunkIndex === 0) await activeSpeech.gotoEnd()
+    return activeSpeech.play()
+  }
+
   function preprocess(text) {
     text = truncateRepeatedChars(text, 3)
     return text.replace(/https?:\/\/\S+/g, "HTTP URL.")
+  }
+
+  async function translateTexts(texts) {
+    return Promise.all(texts.map(async function(text) {
+      try {
+        const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + encodeURIComponent(text.slice(0, 500))
+        const data = await ajaxGet({url, responseType: "json"})
+        if (data && data[0]) {
+          const translated = data[0].filter(Boolean).map(function(item) { return item[0] }).filter(Boolean).join("").trim()
+          if (translated) return translated
+        }
+      } catch(err) {
+        console.error("Translation error:", err)
+      }
+      return text
+    }))
   }
 
   function detectLanguage(texts) {
@@ -310,18 +443,21 @@ function Doc(source, onEnd) {
     }
   }
 
-  async function getSpeech(texts) {
+  async function getSpeech(texts, readMode) {
     const settings = await getSettings()
-    settings.rate = await getSetting("rate" + (settings.voiceName || ""))
+    const origin = info.url ? (() => { try { return new URL(info.url).origin } catch(e) { return null } })() : null
+    const rateKey = (origin && origin !== "null") ? "rate:" + origin : "rate" + (settings.voiceName || "")
+    settings.rate = await getSetting(rateKey) || await getSetting("rate" + (settings.voiceName || ""))
+    const isEnglishMode = readMode === "english"
     var lang = (!info.detectedLang || info.lang && info.lang.startsWith(info.detectedLang)) ? info.lang : info.detectedLang;
-    console.log("Declared", info.lang, "- Detected", info.detectedLang, "- Chosen", lang)
+    console.log("Declared", info.lang, "- Detected", info.detectedLang, "- Chosen", lang, "- ReadMode", readMode)
     var options = {
-      rate: settings.rate || defaults.rate,
+      rate: isEnglishMode ? (settings.rateEN || defaults.rateEN) : 2.5,
       pitch: settings.pitch || defaults.pitch,
       volume: settings.volume || defaults.volume,
-      lang: config.langMap[lang] || lang || 'en-US',
+      lang: isEnglishMode ? "en-US" : (config.langMap[lang] || lang || 'en-US'),
     }
-    const voice = await getSpeechVoice(settings.voiceName, options.lang)
+    const voice = await getSpeechVoice(isEnglishMode ? null : settings.voiceName, options.lang)
     if (!voice) throw new Error(JSON.stringify({code: "error_no_voice", lang: options.lang}));
     options.voice = voice;
     return new Speech(texts, options);
@@ -384,6 +520,14 @@ function Doc(source, onEnd) {
   }
 
   function seek(n) {
+    if (bilingualChunks) {
+      if (activeSpeech) {
+        activeSpeech.stop()
+        activeSpeech = null
+      }
+      return readBilingualChunks(bilingualChunks, n, false)
+        .catch(function(err) { if (onEnd) onEnd(err) })
+    }
     if (activeSpeech) return activeSpeech.seek(n);
     else return Promise.reject(new Error("Can't seek, not active"));
   }

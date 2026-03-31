@@ -1,12 +1,12 @@
 {
   "extension_name": {
-    "message": "Read Aloud: A Text to Speech Voice Reader"
+    "message": "Read Aloud: A Text to Speech Voice Reader (Bilingual)"
   },
   "extension_short_name": {
     "message": "Read Aloud"
   },
   "extension_description": {
-    "message": "Read aloud the current web-page article with one click, using text to speech (TTS). Supports 40+ languages."
+    "message": "Read aloud the current web-page article with one click, using text to speech (TTS). Supports 40+ languages. Supports bilingual (VN-EN)."
   },
   "options_heading": {
     "message": "Options"

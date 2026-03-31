@@ -16,6 +16,14 @@
   <script src="js/popup.js"></script>
 </head>
 <body>
+  <div id="top-bar">
+    <button id="toggle-read-mode" type="button" class="btn btn-sm btn-light" title="Toggle: đọc bản gốc / đọc gốc rồi tiếng Anh">
+      Gốc+EN
+    </button>
+    <button id="btnSettings" type="button" class="btn btn-sm btn-light" title="Settings">
+      <i class="material-icons">settings</i>
+    </button>
+  </div>
   <div id="status">
   </div>
   <div id="buttons">
@@ -23,9 +31,10 @@
     <img src="img/loading.gif" id="imgLoading" />
     <i class="material-icons button-1" id="btnPlay">&#xe037;</i>
     <i class="material-icons button-1" id="btnPause">pause</i>
-    <i class="material-icons button-1" id="btnStop">stop</i>
-    <i class="material-icons button-1" id="btnSettings">settings</i>
     <i class="material-icons button-1" id="btnForward">&#xe01f;</i>
+  </div>
+  <div id="translate-popup">
+    <span class="translate-label">EN</span><span id="translate-text"></span>
   </div>
   <div id="highlight">
   </div>
@@ -55,5 +64,12 @@
   <div id="footer">
     <a href="report.html?referer=popup.html">report issues</a>
   </div>
+
+  <!-- Settings slide-in panel -->
+  <div id="settings-panel">
+    <iframe id="settings-frame" src="options.html?referer=popup.html"></iframe>
+  </div>
+  <div id="settings-backdrop"></div>
+
 </body>
 </html>

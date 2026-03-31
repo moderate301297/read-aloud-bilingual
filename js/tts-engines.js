@@ -60,21 +60,73 @@ interface TtsEngine {
 
 function BrowserTtsEngine() {
   brapi.tts.stop()    //workaround: chrome.tts.speak doesn't work first time on cold start for some reason
-  this.speak = function(text, options, onEvent) {
+  var generation = 0;
+  var savedSpeak = null;  // {text, options, onEvent} — used to re-speak on resume
+  var pausedByUs = false;
+
+  function doSpeak(text, options, onEvent) {
+    var myGen = generation;
+    var voiceName = options.voice.voiceId || options.voice.voiceName;
+    console.log("[BrowserTTS] speak gen=" + myGen + " voice=" + voiceName + " lang=" + options.lang + " text=" + text.slice(0,30));
     brapi.tts.speak(text, {
-      voiceName: options.voice.voiceId || options.voice.voiceName,
+      voiceName: voiceName,
       lang: options.lang,
       rate: options.rate,
       pitch: options.pitch,
       volume: options.volume,
       requiredEventTypes: ["start", "end"],
-      desiredEventTypes: ["start", "end", "error"],
-      onEvent: onEvent
+      desiredEventTypes: ["start", "end", "error", "interrupted"],
+      onEvent: function(event) {
+        // Guard: ignore stale callbacks from a previous speak/stop/pause cycle.
+        if (generation !== myGen) {
+          console.log("[BrowserTTS] STALE event=" + event.type + " gen=" + myGen + " currentGen=" + generation + " → ignored");
+          return;
+        }
+        console.log("[BrowserTTS] event=" + event.type + " gen=" + myGen + (event.errorMessage ? " err=" + event.errorMessage : ""));
+        // "interrupted" = external system interruption (e.g. Android backgrounding).
+        if (event.type == "interrupted") {
+          console.log("[BrowserTTS] interrupted → treating as end");
+          onEvent({type: "end", charIndex: text.length});
+        } else {
+          onEvent(event);
+        }
+      }
     })
   }
-  this.stop = brapi.tts.stop;
-  this.pause = brapi.tts.pause;
-  this.resume = brapi.tts.resume;
+
+  this.speak = function(text, options, onEvent) {
+    pausedByUs = false;
+    savedSpeak = {text: text, options: options, onEvent: onEvent};
+    generation++;
+    doSpeak(text, options, onEvent);
+  }
+  this.stop = function() {
+    console.log("[BrowserTTS] stop() gen=" + generation + " → " + (generation + 1));
+    pausedByUs = false;
+    savedSpeak = null;
+    generation++;
+    brapi.tts.stop();
+  };
+  this.pause = function() {
+    // On Android Kiwi, brapi.tts.pause() silently kills TTS with no event fired,
+    // causing the Observable to hang forever. Instead: stop TTS (increment generation
+    // to block stale "interrupted"), then re-speak the same chunk on resume().
+    console.log("[BrowserTTS] pause() gen=" + generation + " → " + (generation + 1));
+    pausedByUs = true;
+    generation++;  // block any "interrupted" from the stop below
+    brapi.tts.stop();
+  };
+  this.resume = function() {
+    console.log("[BrowserTTS] resume() pausedByUs=" + pausedByUs + " savedSpeak=" + !!savedSpeak);
+    if (pausedByUs && savedSpeak) {
+      pausedByUs = false;
+      generation++;
+      doSpeak(savedSpeak.text, savedSpeak.options, savedSpeak.onEvent);
+    } else {
+      pausedByUs = false;
+      brapi.tts.resume();
+    }
+  };
   this.isSpeaking = brapi.tts.isSpeaking;
   this.getVoices = async function() {
     const voices = await new Promise(f => brapi.tts.getVoices(f)) || []
@@ -95,7 +147,29 @@ function BrowserTtsEngine() {
 
 function WebSpeechEngine() {
   var utter;
+  var visibilityHandler = null;
+
+  function clearVisibilityHandler() {
+    if (visibilityHandler) {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      visibilityHandler = null;
+    }
+  }
+
   this.speak = function(text, options, onEvent) {
+    clearVisibilityHandler();
+    var ended = false;
+    var voiceName = options.voice ? options.voice.name || options.voice.voiceName : "null";
+    console.log("[WebSpeech] speak voice=" + voiceName + " lang=" + options.lang + " text=" + text.slice(0,30));
+
+    function fireEnd() {
+      if (ended) return;
+      ended = true;
+      clearVisibilityHandler();
+      console.log("[WebSpeech] fireEnd");
+      onEvent({type: 'end', charIndex: text.length});
+    }
+
     utter = new SpeechSynthesisUtterance();
     utter.text = text;
     utter.voice = options.voice;
@@ -103,17 +177,56 @@ function WebSpeechEngine() {
     if (options.pitch) utter.pitch = options.pitch;
     if (options.rate) utter.rate = options.rate;
     if (options.volume) utter.volume = options.volume;
-    utter.onstart = onEvent.bind(null, {type: 'start', charIndex: 0});
-    utter.onend = onEvent.bind(null, {type: 'end', charIndex: text.length});
+    utter.onstart = function() {
+      console.log("[WebSpeech] onstart speaking=" + speechSynthesis.speaking);
+      onEvent({type: 'start', charIndex: 0});
+    };
+    utter.onend = function() {
+      console.log("[WebSpeech] onend");
+      fireEnd();
+    };
     utter.onerror = function(event) {
-      if (event.error == "canceled" || event.error == "interrupted") return;
+      console.log("[WebSpeech] onerror=" + event.error);
+      if (event.error == "canceled") return;
+      if (event.error == "interrupted") {
+        // External interruption (e.g. Android backgrounding) — treat as end.
+        // Our own stop() clears onerror first, so this only fires for system interruptions.
+        fireEnd();
+        return;
+      }
       onEvent({type: 'error', error: new Error(event.error)});
     };
-    speechSynthesis.cancel()
+
+    // Android (Kiwi/Chrome) often silently kills TTS on screen exit with NO event.
+    // When page becomes visible again, check if TTS has silently stopped.
+    visibilityHandler = function() {
+      console.log("[WebSpeech] visibilitychange hidden=" + document.hidden + " ended=" + ended);
+      if (document.hidden || ended) return;
+      setTimeout(function() {
+        console.log("[WebSpeech] visibilityTimer speaking=" + speechSynthesis.speaking + " pending=" + speechSynthesis.pending + " ended=" + ended);
+        if (!ended && !speechSynthesis.speaking && !speechSynthesis.pending) {
+          console.log("[WebSpeech] visibilityTimer → silent stop detected → fireEnd");
+          fireEnd();
+        }
+      }, 500);
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
+
+    console.log("[WebSpeech] before speak: speaking=" + speechSynthesis.speaking + " paused=" + speechSynthesis.paused);
+    speechSynthesis.cancel();
+    // Workaround: Android/Kiwi Browser may leave speechSynthesis in a paused state
+    // after cancel(), causing the next speak() to fire onend immediately without audio.
+    speechSynthesis.resume();
     speechSynthesis.speak(utter);
+    console.log("[WebSpeech] after speak: speaking=" + speechSynthesis.speaking + " paused=" + speechSynthesis.paused + " pending=" + speechSynthesis.pending);
   }
   this.stop = function() {
-    if (utter) utter.onend = null;
+    console.log("[WebSpeech] stop()");
+    clearVisibilityHandler();
+    if (utter) {
+      utter.onend = null;
+      utter.onerror = null;  // prevent "interrupted" from firing as "end" on our own cancel
+    }
     speechSynthesis.cancel();
   }
   this.pause = function() {

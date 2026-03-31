@@ -4,7 +4,7 @@
   "name": "__MSG_extension_name__",
   "short_name": "__MSG_extension_short_name__",
   "description": "__MSG_extension_description__",
-  "version": "2.22.0",
+  "version": "1.1.0",
   "default_locale": "en",
   "minimum_chrome_version": "99",
 
@@ -40,7 +40,9 @@
     "webNavigation"
   ],
   "host_permissions": [
-    "https://translate.google.com/"
+    "https://translate.google.com/",
+    "https://translate.googleapis.com/",
+    "https://generativelanguage.googleapis.com/"
   ],
   "optional_host_permissions": [
     "http://*/",
