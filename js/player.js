@@ -216,16 +216,27 @@ async function initialize() {
 
 function setupMediaSession() {
   if (!('mediaSession' in navigator)) return
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'Read Aloud',
-    artist: 'Read Aloud',
-    artwork: [{src: brapi.runtime.getURL('img/icon.png'), sizes: '128x128', type: 'image/png'}]
-  })
   navigator.mediaSession.setActionHandler('play', function() { resume() })
   navigator.mediaSession.setActionHandler('pause', function() { pause() })
   navigator.mediaSession.setActionHandler('stop', function() { stop() })
   navigator.mediaSession.setActionHandler('previoustrack', function() { rewind() })
   navigator.mediaSession.setActionHandler('nexttrack', function() { forward() })
+  // MediaMetadata artwork requires http/https/data/blob scheme, not chrome-extension://
+  fetch(brapi.runtime.getURL('img/icon.png'))
+    .then(function(r) { return r.blob() })
+    .then(function(blob) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Read Aloud',
+        artist: 'Read Aloud',
+        artwork: [{src: URL.createObjectURL(blob), sizes: '128x128', type: 'image/png'}]
+      })
+    })
+    .catch(function() {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Read Aloud',
+        artist: 'Read Aloud',
+      })
+    })
 }
 
 function setMediaSessionState(state) {
