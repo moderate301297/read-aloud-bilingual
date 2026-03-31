@@ -1,0 +1,37 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading " ĐĂNG NHẬP" [level=4] [ref=e4]:
+        - generic [ref=e5]: 
+        - text: ĐĂNG NHẬP
+      - text: Chào mừng bạn trở lại với Tiệm Truyện
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: Tên đăng nhập
+          - generic [ref=e10]:
+            - generic [ref=e12]: 
+            - textbox "Nhập tài khoản" [ref=e13]
+        - generic [ref=e14]:
+          - generic [ref=e15]: Mật khẩu
+          - generic [ref=e16]:
+            - generic [ref=e18]: 
+            - textbox "Nhập mật khẩu" [ref=e19]
+        - button "ĐĂNG NHẬP NGAY" [ref=e20] [cursor=pointer]
+      - generic [ref=e22]:
+        - text: hoặc
+        - separator [ref=e23]
+      - button "Đăng nhập với Google" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - text: Đăng nhập với Google
+      - generic [ref=e31]:
+        - link " Quên mật khẩu?" [ref=e32] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [ref=e33]: 
+          - text: Quên mật khẩu?
+        - separator [ref=e34]
+        - paragraph [ref=e35]:
+          - text: Chưa có tài khoản?
+          - link "Đăng ký ngay" [ref=e36] [cursor=pointer]:
+            - /url: /register
+  - text:  
