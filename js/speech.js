@@ -6,7 +6,7 @@ function Speech(texts, options) {
   if (texts.length) {
     var isEA = /^zh|ko|ja/.test(options.lang);
     var joinedText = texts.join("\n\n");
-    if (!isEA) joinedText = joinedText.replace(/[~@#%^*_+=<>|\\{}\[\]`]/g, ' ').replace(/  +/g, ' ');
+    if (!isEA) joinedText = joinedText.replace(/[^\p{L}\p{N}\s.,!?;:'"()\-—–…]/gu, ' ').replace(/\s{2,}/g, ' ');
     texts = getChunks(joinedText);
   }
 
