@@ -232,7 +232,7 @@ function Doc(source, onEnd) {
 
   // Entry point: split paragraphs into sentence-level chunks, then process each as VN→EN
   async function readBilingualTexts(texts, textIndex, rewinded) {
-    const chunks = texts.slice(textIndex).filter(Boolean).flatMap(splitIntoSentenceChunks)
+    const chunks = texts.slice(textIndex).filter(Boolean).flatMap(splitIntoSentenceChunks).filter(function(c) { return c && !/^[\s.\n]+$/.test(c) })
     bilingualChunks = chunks
     console.log("[Bilingual] chunks word counts:", chunks.map(function(c) { return c.split(/\s+/).length }))
     return readBilingualChunks(chunks, 0, rewinded)
