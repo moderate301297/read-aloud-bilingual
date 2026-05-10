@@ -6,6 +6,44 @@ brapi.runtime.onInstalled.addListener(function() {
 
 
 /**
+ * Keep-alive: prevent service worker from being terminated during playback.
+ *
+ * Strategy 1 — chrome.alarms fires every 20 s to wake the SW if Chrome killed it.
+ * Strategy 2 — a long-lived port from the player tab blocks termination while open.
+ */
+if (brapi.alarms) {
+  brapi.alarms.onAlarm.addListener(function(alarm) {
+    if (alarm.name === 'keepAlive') {
+      // Intentionally empty — firing the alarm keeps the SW alive
+    }
+  })
+}
+
+var keepAlivePort = null
+
+brapi.runtime.onConnect.addListener(function(port) {
+  if (port.name === 'keepAlive') {
+    keepAlivePort = port
+    port.onDisconnect.addListener(function() {
+      keepAlivePort = null
+    })
+  }
+})
+
+function startKeepAlive() {
+  if (brapi.alarms) {
+    brapi.alarms.create('keepAlive', { periodInMinutes: 1/3 })
+  }
+}
+
+function stopKeepAlive() {
+  if (brapi.alarms) {
+    brapi.alarms.clear('keepAlive')
+  }
+}
+
+
+/**
  * IPC handlers
  */
 var handlers = {
@@ -181,6 +219,7 @@ var currentTask = {
 async function playText(text, opts) {
   const hasPlayer = await stop().then(res => res == true, err => false)
   if (!hasPlayer) await injectPlayer(await getActiveTab())
+  startKeepAlive()
   await sendToPlayer({method: "playText", args: [text, opts]})
 }
 
@@ -207,6 +246,7 @@ async function playTab(tabId) {
 
   const hasPlayer = await stop().then(res => res == true, err => false)
   if (!hasPlayer) await injectPlayer(tab)
+  startKeepAlive()
   await sendToPlayer({method: "playTab"})
 }
 
@@ -236,6 +276,7 @@ async function reloadAndPlayTab(tabId) {
 
 function stop() {
   currentTask.cancel()
+  stopKeepAlive()
   return sendToPlayer({method: "stop"})
 }
 
@@ -419,10 +460,16 @@ async function injectContentScript(tab, frameId, extraScripts) {
   console.info("Content handler", files)
 }
 
+// On Android, the player tab is a background tab that Chrome can freeze.
+// Embedded player (iframe in the active content tab) avoids this by running
+// in the foreground context, which maintains Android audio focus automatically.
+const isAndroid = /Android/i.test(navigator.userAgent)
+
 async function injectPlayer(tab) {
   const settings = await getSettings(["useEmbeddedPlayer", "piperVoices", "supertonicVoices"])
   const promise = new Promise(f => handlers.playerCheckIn = f)
-  if (tab && settings.useEmbeddedPlayer
+  const preferEmbedded = settings.useEmbeddedPlayer || isAndroid
+  if (tab && preferEmbedded
     //don't use embedded player if there are Piper or Supertonic voices installed
     && (settings.piperVoices || []).length == 0
     && (settings.supertonicVoices || []).length == 0
@@ -471,6 +518,13 @@ async function createPlayerTab() {
     active: false,
   })
   await brapi.tabs.update(tab.id, {pinned: true})
+  function onPlayerTabRemoved(tabId) {
+    if (tabId === tab.id) {
+      brapi.tabs.onRemoved.removeListener(onPlayerTabRemoved)
+      currentTask.cancel()
+    }
+  }
+  brapi.tabs.onRemoved.addListener(onPlayerTabRemoved)
 }
 
 

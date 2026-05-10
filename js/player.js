@@ -133,6 +133,25 @@ window.addEventListener("message", event => {
 
 const idleSubject = new rxjs.BehaviorSubject(true)
 
+// Keep service worker alive via a long-lived port while playback is active.
+// The port prevents Chrome from terminating the MV3 service worker mid-playback.
+;(function setupPortKeepalive() {
+  let port = null
+  idleSubject.subscribe(function(isIdle) {
+    if (!isIdle && !port) {
+      try {
+        port = brapi.runtime.connect({name: 'keepAlive'})
+        port.onDisconnect.addListener(function() { port = null })
+      } catch (e) {
+        console.warn('keepAlive port failed', e)
+      }
+    } else if (isIdle && port) {
+      try { port.disconnect() } catch (_) {}
+      port = null
+    }
+  })
+})()
+
 if (queryString.has("autoclose")) {
   rxjs.combineLatest(
     idleSubject,
@@ -196,6 +215,7 @@ document.addEventListener("DOMContentLoaded", initialize)
 async function initialize() {
   setI18nText()
   setupMediaSession()
+  setupVisibilityResume()
 
   $("#hidethistab-link")
     .toggle(canUseEmbeddedPlayer() && !(await getSettings()).useEmbeddedPlayer)
@@ -242,6 +262,17 @@ function setupMediaSession() {
 function setMediaSessionState(state) {
   if (!('mediaSession' in navigator)) return
   navigator.mediaSession.playbackState = state
+}
+
+function setupVisibilityResume() {
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden) {
+      // Screen turned back on — resume audio if it was playing before screen off
+      getPlaybackState().then(function(state) {
+        if (state.state === "PLAYING") resume()
+      }).catch(console.error)
+    }
+  })
 }
 
 function playText(text, opts) {
@@ -327,6 +358,32 @@ function getPlaybackState() {
   }
 }
 
+// Plays silence in the player tab (real DOM page) for the entire reading session.
+// This establishes Android audio focus so Kiwi Browser is not suspended when the
+// screen is off or another app is in the foreground.
+// If autoplay is blocked (player tab never had focus), falls back to the existing
+// requestAudioPlaybackPermission flow which briefly focuses the tab to unlock audio.
+const playerTabSilence = (function() {
+  const audio = new Audio(brapi.runtime.getURL("sound/silence.mp3"))
+  audio.loop = true
+  async function start() {
+    try {
+      await audio.play()
+    } catch(e) {
+      if (e.name === 'NotAllowedError') {
+        await requestAudioPlaybackPermission()
+        audio.play().catch(console.error)
+      } else {
+        console.error('playerTabSilence:', e)
+      }
+    }
+  }
+  return {
+    start,
+    stop() { audio.pause(); audio.currentTime = 0 },
+  }
+})()
+
 function openDoc(source, onEnd) {
   const doc = activeDoc = new Doc(source, function(err) {
     handleError(err);
@@ -336,6 +393,7 @@ function openDoc(source, onEnd) {
   idleSubject.next(false)
   lastUrlPromise = Promise.resolve(source.getUri())
   setMediaSessionState("playing")
+  playerTabSilence.start()
 }
 
 function closeDoc() {
@@ -344,6 +402,10 @@ function closeDoc() {
     activeDoc = null;
     idleSubject.next(true)
     setMediaSessionState("none")
+    playerTabSilence.stop()
+    if (brapi.offscreen) {
+      sendToOffscreen({method: "stop"}).catch(console.error)
+    }
   }
 }
 
