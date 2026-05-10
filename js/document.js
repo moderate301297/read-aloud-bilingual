@@ -134,6 +134,8 @@ function Doc(source, onEnd) {
   var bilingualChunks = null;
   var bilingualDisplayTexts = null;
   var bilingualChunkParaIndex = null;
+  var translationCache = new Map()
+  const TRANSLATION_PREFETCH_WINDOW = 8
   var ready = source.ready
     .then(function(result) {info = result})
   var foundText;
@@ -210,6 +212,7 @@ function Doc(source, onEnd) {
     bilingualChunks = null
     bilingualDisplayTexts = null
     bilingualChunkParaIndex = null
+    translationCache.clear()
     activeSpeech = await getSpeech(texts, readMode);
     await wait(playbackState, "resumed")
     activeSpeech.onEnd = function(err) {
@@ -237,6 +240,21 @@ function Doc(source, onEnd) {
     }
   }
 
+  function prefetchTranslations(chunks, fromIndex) {
+    for (var i = fromIndex; i < Math.min(fromIndex + TRANSLATION_PREFETCH_WINDOW, chunks.length); i++) {
+      if (!translationCache.has(i) && chunks[i]) {
+        translationCache.set(i, translateTexts([chunks[i]]).catch(function() { return [chunks[i]] }))
+      }
+    }
+  }
+
+  function getCachedTranslation(chunks, index) {
+    if (!translationCache.has(index) && chunks[index]) {
+      translationCache.set(index, translateTexts([chunks[index]]).catch(function() { return [chunks[index]] }))
+    }
+    return translationCache.get(index) || Promise.resolve([chunks[index] || ''])
+  }
+
   // Entry point: split paragraphs into sentence-level chunks, then process each as VN→EN
   async function readBilingualTexts(texts, textIndex, rewinded) {
     const chunks = []
@@ -250,6 +268,8 @@ function Doc(source, onEnd) {
     bilingualChunks = chunks
     bilingualDisplayTexts = texts
     bilingualChunkParaIndex = chunkParaIndex
+    translationCache.clear()
+    prefetchTranslations(chunks, 0)
     console.log("[Bilingual] chunks word counts:", chunks.map(function(c) { return c.split(/\s+/).length }))
     return readBilingualChunks(texts, chunkParaIndex, chunks, 0, rewinded)
   }
@@ -276,19 +296,21 @@ function Doc(source, onEnd) {
     patchBilingualGetInfo(activeSpeech, displayTexts, chunkParaIndex[chunkIndex], chunks[chunkIndex])
     await wait(playbackState, "resumed")
 
-    // Use pre-computed EN promise if passed in, otherwise fire new prefetch
-    const enSpeechPromise = precomputedEnSpeechPromise || translateTexts(chunk)
-      .then(function(translatedTexts) { return getSpeech(translatedTexts, "english") })
-      .catch(function(err) {
-        console.error("[Bilingual] EN prefetch error:", err)
-        return null
-      })
+    // Use pre-computed EN promise if passed in, otherwise draw from translation cache
+    const enSpeechPromise = precomputedEnSpeechPromise ||
+      getCachedTranslation(chunks, chunkIndex)
+        .then(function(translatedTexts) { return getSpeech(translatedTexts, "english") })
+        .catch(function(err) {
+          console.error("[Bilingual] EN prefetch error:", err)
+          return null
+        })
 
-    // Prefetch NEXT chunk's EN in background while current VN plays (1-chunk look-ahead)
+    // Advance prefetch window and build next chunk's EN speech promise from cache
+    prefetchTranslations(chunks, chunkIndex + 1)
     let nextChunkIndex = chunkIndex + 1
     while (nextChunkIndex < chunks.length && !chunks[nextChunkIndex]) nextChunkIndex++
     const nextEnSpeechPromise = nextChunkIndex < chunks.length
-      ? translateTexts([chunks[nextChunkIndex]])
+      ? getCachedTranslation(chunks, nextChunkIndex)
           .then(function(translatedTexts) { return getSpeech(translatedTexts, "english") })
           .catch(function(err) {
             console.error("[Bilingual] EN next-prefetch error:", err)
