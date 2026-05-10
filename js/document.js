@@ -238,24 +238,10 @@ function Doc(source, onEnd) {
     return readBilingualChunks(chunks, 0, rewinded)
   }
 
-  // Split text into sentences (1 sentence = 1 chunk), hard cap at MAX_WORDS per chunk
+  // 1 sentence = 1 chunk, split on sentence-ending punctuation
   function splitIntoSentenceChunks(text) {
-    const MAX_WORDS = 200
-    // Split on ASCII and full-width sentence-ending punctuation followed by whitespace
     const sentences = text.split(/(?<=[.!?。！？])\s+/).map(function(s) { return s.trim() }).filter(Boolean)
-    const result = []
-    for (var i = 0; i < sentences.length; i++) {
-      var words = sentences[i].split(/\s+/)
-      if (words.length <= MAX_WORDS) {
-        result.push(sentences[i])
-      } else {
-        // Hard cap: slice into MAX_WORDS word blocks
-        for (var j = 0; j < words.length; j += MAX_WORDS) {
-          result.push(words.slice(j, j + MAX_WORDS).join(' '))
-        }
-      }
-    }
-    return result.length > 0 ? result : [text]
+    return sentences.length > 0 ? sentences : [text]
   }
 
   // Process flat chunk array: for each chunk play VN → EN, with 1-chunk look-ahead
