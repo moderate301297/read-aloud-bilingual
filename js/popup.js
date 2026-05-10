@@ -235,8 +235,9 @@ function updateHighlighting(speech) {
       child.addClass("active")
       scrollIntoView(child, elem)
     }
-    if (!prevPos || prevPos.index !== pos.index) {
-      showTranslationFor(speech.texts[pos.index], pos.index)
+    const chunkKey = pos.chunkKey != null ? pos.chunkKey : pos.index
+    if (!prevPos || (prevPos.chunkKey != null ? prevPos.chunkKey !== pos.chunkKey : prevPos.index !== pos.index)) {
+      showTranslationFor(pos.chunkText || speech.texts[pos.index], chunkKey)
     }
   }
 }

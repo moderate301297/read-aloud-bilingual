@@ -132,6 +132,8 @@ function Doc(source, onEnd) {
   var currentIndex;
   var activeSpeech;
   var bilingualChunks = null;
+  var bilingualDisplayTexts = null;
+  var bilingualChunkParaIndex = null;
   var ready = source.ready
     .then(function(result) {info = result})
   var foundText;
@@ -206,6 +208,8 @@ function Doc(source, onEnd) {
       return readBilingualTexts(texts, 0, rewinded)
     }
     bilingualChunks = null
+    bilingualDisplayTexts = null
+    bilingualChunkParaIndex = null
     activeSpeech = await getSpeech(texts, readMode);
     await wait(playbackState, "resumed")
     activeSpeech.onEnd = function(err) {
@@ -222,30 +226,42 @@ function Doc(source, onEnd) {
     return activeSpeech.play();
   }
 
-  function patchBilingualGetInfo(speech, fullTexts, index) {
+  function patchBilingualGetInfo(speech, displayTexts, displayIndex, chunkText) {
     const orig = speech.getInfo
     speech.getInfo = function() {
       const info = orig()
-      return { ...info, texts: fullTexts, position: { index } }
+      const paraText = displayTexts[displayIndex] || ''
+      const startIndex = chunkText ? paraText.indexOf(chunkText) : -1
+      const word = startIndex >= 0 ? { startIndex, endIndex: startIndex + chunkText.length } : null
+      return { ...info, texts: displayTexts, position: { index: displayIndex, word, chunkText, chunkKey: displayIndex + '_' + startIndex } }
     }
   }
 
   // Entry point: split paragraphs into sentence-level chunks, then process each as VN→EN
   async function readBilingualTexts(texts, textIndex, rewinded) {
-    const chunks = texts.slice(textIndex).filter(Boolean).flatMap(splitIntoSentenceChunks).filter(function(c) { return c && !/^[\s.\n]+$/.test(c) })
+    const chunks = []
+    const chunkParaIndex = []
+    texts.slice(textIndex).filter(Boolean).forEach(function(text, i) {
+      splitIntoSentenceChunks(text).filter(function(c) { return c && !/^[\s.\n]+$/.test(c) }).forEach(function(chunk) {
+        chunks.push(chunk)
+        chunkParaIndex.push(textIndex + i)
+      })
+    })
     bilingualChunks = chunks
+    bilingualDisplayTexts = texts
+    bilingualChunkParaIndex = chunkParaIndex
     console.log("[Bilingual] chunks word counts:", chunks.map(function(c) { return c.split(/\s+/).length }))
-    return readBilingualChunks(chunks, 0, rewinded)
+    return readBilingualChunks(texts, chunkParaIndex, chunks, 0, rewinded)
   }
 
-  // 1 sentence = 1 chunk, split on sentence-ending punctuation
+  // 1 clause = 1 chunk, split on sentence-ending and comma punctuation
   function splitIntoSentenceChunks(text) {
-    const sentences = text.split(/(?<=[.!?。！？])\s+/).map(function(s) { return s.trim() }).filter(Boolean)
+    const sentences = text.split(/(?<=[.!?。！？,，])\s+/).map(function(s) { return s.trim() }).filter(Boolean)
     return sentences.length > 0 ? sentences : [text]
   }
 
   // Process flat chunk array: for each chunk play VN → EN, with 1-chunk look-ahead
-  async function readBilingualChunks(chunks, chunkIndex, rewinded, precomputedEnSpeechPromise) {
+  async function readBilingualChunks(displayTexts, chunkParaIndex, chunks, chunkIndex, rewinded, precomputedEnSpeechPromise) {
     console.log("[Bilingual] readBilingualChunks chunkIndex=" + chunkIndex + "/" + chunks.length + " words=" + (chunks[chunkIndex] ? chunks[chunkIndex].split(/\s+/).length : 0) + " activeSpeech=" + !!activeSpeech)
     while (chunkIndex < chunks.length && !chunks[chunkIndex]) chunkIndex++
     if (chunkIndex >= chunks.length) {
@@ -257,7 +273,7 @@ function Doc(source, onEnd) {
     if (activeSpeech) { console.log("[Bilingual] activeSpeech exists → skip"); return }
     const chunk = [chunks[chunkIndex]]
     activeSpeech = await getSpeech(chunk, "original")
-    patchBilingualGetInfo(activeSpeech, chunks, chunkIndex)
+    patchBilingualGetInfo(activeSpeech, displayTexts, chunkParaIndex[chunkIndex], chunks[chunkIndex])
     await wait(playbackState, "resumed")
 
     // Use pre-computed EN promise if passed in, otherwise fire new prefetch
@@ -291,7 +307,7 @@ function Doc(source, onEnd) {
             if (!enSpeech) throw new Error("EN prefetch failed")
             if (activeSpeech) { console.log("[Bilingual] EN: activeSpeech race → stop EN"); enSpeech.stop(); return }
             activeSpeech = enSpeech
-            patchBilingualGetInfo(activeSpeech, chunks, chunkIndex)
+            patchBilingualGetInfo(activeSpeech, displayTexts, chunkParaIndex[chunkIndex], chunks[chunkIndex])
             await wait(playbackState, "resumed")
             activeSpeech.onEnd = function(err) {
               console.log("[Bilingual] EN onEnd err=" + (err ? err.message : null))
@@ -299,7 +315,7 @@ function Doc(source, onEnd) {
                 if (onEnd) onEnd(err)
               } else {
                 activeSpeech = null
-                readBilingualChunks(chunks, chunkIndex + 1, false, nextEnSpeechPromise)
+                readBilingualChunks(displayTexts, chunkParaIndex, chunks, chunkIndex + 1, false, nextEnSpeechPromise)
                   .catch(function(err) { if (onEnd) onEnd(err) })
               }
             }
@@ -309,7 +325,7 @@ function Doc(source, onEnd) {
           .catch(function(err) {
             console.error("[Bilingual] EN error, skipping:", err)
             activeSpeech = null
-            readBilingualChunks(chunks, chunkIndex + 1, false, nextEnSpeechPromise)
+            readBilingualChunks(displayTexts, chunkParaIndex, chunks, chunkIndex + 1, false, nextEnSpeechPromise)
               .catch(function(err2) { if (onEnd) onEnd(err2) })
           })
       }
@@ -511,7 +527,13 @@ function Doc(source, onEnd) {
         activeSpeech.stop()
         activeSpeech = null
       }
-      return readBilingualChunks(bilingualChunks, n, false)
+      // n is a paragraph index — find the first chunk belonging to that paragraph
+      var chunkIndex = 0
+      if (bilingualChunkParaIndex) {
+        var found = bilingualChunkParaIndex.indexOf(n)
+        if (found >= 0) chunkIndex = found
+      }
+      return readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, chunkIndex, false)
         .catch(function(err) { if (onEnd) onEnd(err) })
     }
     if (activeSpeech) return activeSpeech.seek(n);
