@@ -42,6 +42,7 @@
     else if (location.hostname == "www.webnovel.com" && location.pathname.startsWith("/book/")) return ["js/content/webnovel.js"];
     else if (location.hostname == "archiveofourown.org") return ["js/content/archiveofourown.js"];
     else if (location.hostname == "tiemtruyenchu.com") return ["js/content/tiemtruyenchu.js"];
+    else if (location.hostname == "webnovel.vn") return ["js/content/webnovel-vn.js"];
     else if (location.hostname == "chat.openai.com") return ["js/content/chatgpt.js"];
     else if (location.pathname.match(/readaloud\.html$/)
       || location.pathname.match(/\.pdf$/)
