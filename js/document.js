@@ -77,6 +77,20 @@ function TabSource() {
       const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(() => null)
       if (!nextUrl) return null
 
+      // Wait for screen to be visible before navigating — prevents rapid chapter-skipping
+      // when the OS interrupts TTS while the screen is off on mobile
+      if (document.hidden) {
+        await new Promise(function(resolve) {
+          function onVisible() {
+            if (!document.hidden) {
+              document.removeEventListener("visibilitychange", onVisible)
+              resolve()
+            }
+          }
+          document.addEventListener("visibilitychange", onVisible)
+        })
+      }
+
       await navigateTabAndInject(sourceTabId, nextUrl)
       return sendToSource({method: "getTexts", args: [0, quietly]})
     } finally {
@@ -177,6 +191,7 @@ function Doc(source, onEnd) {
   var bilingualChunks = null;
   var bilingualDisplayTexts = null;
   var bilingualChunkParaIndex = null;
+  var currentBilingualChunkIndex = null;
   var translationCache = new Map()
   const TRANSLATION_PREFETCH_WINDOW = 8
   var ready = source.ready
@@ -305,6 +320,7 @@ function Doc(source, onEnd) {
     bilingualChunks = null
     bilingualDisplayTexts = null
     bilingualChunkParaIndex = null
+    currentBilingualChunkIndex = null
     translationCache.clear()
     return readOriginalParagraph(texts, textIndex, rewinded)
   }
@@ -345,9 +361,11 @@ function Doc(source, onEnd) {
     while (chunkIndex < chunks.length && !chunks[chunkIndex]) chunkIndex++
     if (chunkIndex >= chunks.length) {
       console.log("[Bilingual] all chunks done → next page")
+      currentBilingualChunkIndex = null
       currentIndex++
       return readCurrent()
     }
+    currentBilingualChunkIndex = chunkIndex
     await wait(playbackState, "resumed")
     if (activeSpeech) { console.log("[Bilingual] activeSpeech exists → skip"); return }
     const chunk = [chunks[chunkIndex]]
@@ -580,6 +598,13 @@ function Doc(source, onEnd) {
   function forward() {
     if (activeSpeech) {
       if (activeSpeech.canForward()) activeSpeech.forward()
+      else if (bilingualChunks && currentBilingualChunkIndex !== null) {
+        activeSpeech.onEnd = null
+        activeSpeech.stop()
+        activeSpeech = null
+        readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, currentBilingualChunkIndex + 1, false)
+          .catch(function(err) { if (onEnd) onEnd(err) })
+      }
       else forwardPage()
     }
     else return Promise.reject(new Error("Can't forward, not active"));
@@ -593,6 +618,13 @@ function Doc(source, onEnd) {
   function rewind() {
     if (activeSpeech) {
       if (activeSpeech.canRewind()) activeSpeech.rewind()
+      else if (bilingualChunks && currentBilingualChunkIndex !== null && currentBilingualChunkIndex > 0) {
+        activeSpeech.onEnd = null
+        activeSpeech.stop()
+        activeSpeech = null
+        readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, currentBilingualChunkIndex - 1, false)
+          .catch(function(err) { if (onEnd) onEnd(err) })
+      }
       else rewindPage()
     }
     else return Promise.reject(new Error("Can't rewind, not active"));
@@ -605,6 +637,7 @@ function Doc(source, onEnd) {
   function seek(n) {
     if (bilingualChunks) {
       if (activeSpeech) {
+        activeSpeech.onEnd = null
         activeSpeech.stop()
         activeSpeech = null
       }
