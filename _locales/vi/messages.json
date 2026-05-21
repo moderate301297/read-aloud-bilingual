@@ -1,12 +1,12 @@
 {
   "extension_name": {
-    "message": "Đọc Cho Tôi Nghe"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Đọc Tui Nghe"
+    "message": "Novel Reader"
   },
   "extension_description": {
-    "message": "Đọc nghe nội dung trang web - tiếng Anh và Việt. Dùng nghe đọc tin tức, truyện online. Giọng đọc hay, tiện ích dễ xài."
+    "message": "Đọc truyện web tiếng Việt với chế độ song ngữ VN–EN. Từng câu được đọc tiếng Việt rồi dịch và đọc tiếng Anh. Hỗ trợ tự động chuyển chương."
   },
   "options_heading": {
     "message": "Tùy Chọn"

@@ -1,9 +1,9 @@
 {
   "extension_name": {
-    "message": "Read Aloud: قارئ النصوص الصوتي"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Read Aloud"
+    "message": "Novel Reader"
   },
   "extension_description": {
     "message": "اقرأ مقالة صفحة الويب الحالية بصوت عالٍ بنقرة واحدة، باستخدام تحويل النص إلى كلام. يدعم أكثر من 40 لغة."

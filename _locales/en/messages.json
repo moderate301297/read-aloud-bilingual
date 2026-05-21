@@ -1,12 +1,12 @@
 {
   "extension_name": {
-    "message": "Read Aloud: A Text to Speech Voice Reader (Bilingual)"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Read Aloud"
+    "message": "Novel Reader"
   },
   "extension_description": {
-    "message": "Read aloud the current web-page article with one click, using text to speech (TTS). Supports 40+ languages. Supports bilingual (VN-EN)."
+    "message": "Read Vietnamese web novels with bilingual VN–EN mode. Each sentence read in Vietnamese then translated and read in English. Supports auto-next chapter."
   },
   "options_heading": {
     "message": "Options"

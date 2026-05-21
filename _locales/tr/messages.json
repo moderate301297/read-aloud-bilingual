@@ -1,9 +1,9 @@
 {
   "extension_name": {
-    "message": "Read Aloud: Bir Metni Sesli Okuyucu"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Read Aloud"
+    "message": "Novel Reader"
   },
   "extension_description": {
     "message": "Geçerli web sayfası makalesini tek bir tıklatmayla, metin okuma (TTS) kullanarak yüksek sesle okuyun. 40'tan fazla dili destekler."

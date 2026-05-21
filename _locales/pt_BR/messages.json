@@ -1,9 +1,9 @@
 {
   "extension_name": {
-    "message": "Read Aloud: Leitor de texto para fala"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Read Aloud"
+    "message": "Novel Reader"
   },
   "extension_description": {
     "message": "Leia em voz alta o artigo da página web atual com um clique, usando texto para fala. Suporta mais de 40 idiomas."

@@ -1,9 +1,9 @@
 {
   "extension_name": {
-    "message": "Read Aloud: Tekst til tale-oppleser"
+    "message": "Novel Reader: VN–EN Bilingual"
   },
   "extension_short_name": {
-    "message": "Read Aloud"
+    "message": "Novel Reader"
   },
   "extension_description": {
     "message": "Les den gjeldende nettsideartikkelen høyt med ett klikk, ved hjelp av tekst til tale. Støtter over 40 språk."
