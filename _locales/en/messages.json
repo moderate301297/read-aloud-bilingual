@@ -6,7 +6,7 @@
     "message": "Novel Reader"
   },
   "extension_description": {
-    "message": "Read Vietnamese web novels with bilingual VN–EN mode. Each sentence read in Vietnamese then translated and read in English. Supports auto-next chapter."
+    "message": "Read Vietnamese web novels with bilingual VN–EN TTS. Reads each sentence in Vietnamese then English. Auto-next chapter supported."
   },
   "options_heading": {
     "message": "Options"
