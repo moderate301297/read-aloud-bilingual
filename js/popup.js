@@ -465,7 +465,7 @@ async function toggleAutoNext() {
 
 function updateAutoNextButton(enabled) {
   $("#toggle-auto-next").toggleClass("active", !!enabled)
-    .attr("title", enabled ? "Tự chuyển chương: BẬT" : "Tự chuyển chương: TẮT")
+    .attr("title", enabled ? "Auto-next chapter: ON" : "Auto-next chapter: OFF")
 }
 
 async function toggleReadMode() {

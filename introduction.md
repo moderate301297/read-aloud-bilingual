@@ -1,28 +1,28 @@
 # Read Aloud — Bilingual Fork
 
-Extension đọc truyện online với chế độ song ngữ Việt–Anh, fork từ [ken107/read-aloud](https://github.com/ken107/read-aloud).
+Chrome extension for reading Vietnamese web novels with a bilingual VN–EN mode. Fork of [ken107/read-aloud](https://github.com/ken107/read-aloud).
 
-**Lưu ý:** Không thể đọc trực tiếp trang cài đặt extension. Sau khi cài, hãy vào một trang web bất kỳ (ví dụ [Wikipedia](https://en.wikipedia.org/wiki/Speech_synthesis)) để test.
+**Note:** The extension installation page cannot be read directly. After installing, navigate to any website (e.g. [Wikipedia](https://en.wikipedia.org/wiki/Speech_synthesis)) to test.
 
-## Tính năng chính:
+## Key Features:
 
-- Chế độ **Gốc+EN**: đọc từng câu tiếng Việt → dịch và đọc tiếng Anh → câu tiếp theo.
-- Chế độ **Gốc**: chỉ đọc bản gốc, highlight từng câu, không gọi API dịch.
-- Dịch tự động qua Google Translate / Gemini API, prefetch 8 chunk để không bị delay.
-- Tự động chuyển chương khi đọc xong.
-- Hỗ trợ webnovel.vn (cả chương miễn phí lẫn chương trả phí với CSS scrambling).
-- Dark mode, tăng/giảm font size, phím tắt.
+- **Original+EN mode**: reads each Vietnamese sentence → translates and reads English → next sentence.
+- **Original mode**: reads source text only, highlights each sentence, no translation API calls.
+- Auto-translation via Google Translate / Gemini API with 8-chunk prefetch to avoid delays.
+- Auto-advance to next chapter on completion.
+- Supports webnovel.vn (free chapters and paid chapters with CSS scrambling).
+- Dark mode, adjustable font size, keyboard shortcuts.
 
-## Giọng đọc
+## Voices
 
-Hỗ trợ giọng đọc tích hợp sẵn của trình duyệt và các dịch vụ cloud như Google Wavenet, Amazon Polly, Microsoft Azure.
+Supports browser built-in voices and cloud TTS services including Google Wavenet, Amazon Polly, and Microsoft Azure.
 
-## Hướng dẫn sử dụng
+## Usage Guide
 
-Xem tại [README](https://github.com/moderate301297/read-aloud-bilingual#readme).
+See the [README](https://github.com/moderate301297/read-aloud-bilingual#readme).
 
-## Về dự án
+## About
 
-Fork cá nhân từ [ken107/read-aloud](https://github.com/ken107/read-aloud) — tùy chỉnh cho việc đọc tiểu thuyết web tiếng Việt.
+Personal fork of [ken107/read-aloud](https://github.com/ken107/read-aloud), customized for reading Vietnamese web novels.
 
-Nếu gặp lỗi hoặc có góp ý, vui lòng tạo issue tại [GitHub Issues](https://github.com/moderate301297/read-aloud-bilingual/issues).
+Found a bug or have a suggestion? Please open an issue at [GitHub Issues](https://github.com/moderate301297/read-aloud-bilingual/issues).

@@ -1,70 +1,72 @@
 # Read Aloud — Bilingual Fork
 
-Extension đọc truyện online với chế độ song ngữ Việt–Anh, fork từ [Read Aloud](https://github.com/ken107/read-aloud) với các tính năng tùy chỉnh cho việc đọc tiểu thuyết web tiếng Việt.
+Chrome extension for reading Vietnamese web novels with bilingual VN–EN mode. Fork of [Read Aloud](https://github.com/ken107/read-aloud) with customizations for Vietnamese web novel reading.
 
 ---
 
-## Tính năng
+## Features
 
-### Chế độ đọc
+### Read Modes
 
-| Nút | Mode | Hành vi |
-|-----|------|---------|
-| **Gốc+EN** | Bilingual | Đọc từng câu VN → dịch và đọc EN → câu tiếp theo |
-| **Gốc** | Original | Chỉ đọc bản gốc, highlight từng câu, không dịch |
+| Button | Mode | Behavior |
+|--------|------|----------|
+| **Original+EN** | Bilingual | Reads each VN sentence → translates and reads EN → next sentence |
+| **Original** | Original | Reads source text only, highlights each sentence, no translation |
 
-### Bilingual (Gốc+EN)
-- Mỗi câu được split và đọc riêng (VN trước, EN sau)
-- Dịch tự động qua Google Translate / Gemini API
-- Prefetch dịch 8 chunk trước để không bị delay
-- Ô dịch EN hiện ngay bên dưới highlight
+### Bilingual (Original+EN)
+- Each sentence is split and read individually (VN first, then EN)
+- Auto-translation via Google Translate / Gemini API
+- Prefetches 8 chunks ahead to eliminate loading delays
+- EN translation shown inline below the current highlight
 
-### Original (Gốc)
-- Highlight từng câu theo từng paragraph như UI web
-- Không gọi API dịch, không hiển thị frame EN
-- Nhanh hơn, phù hợp khi đã quen nội dung
+### Original
+- Highlights each sentence per paragraph
+- No translation API calls, no EN frame
+- Faster; suitable when content is already familiar
 
-### Tự động chuyển chương
-Bật nút **⏭** trong toolbar: khi đọc xong chương, extension tự navigate sang chương tiếp theo và đọc luôn mà không cần nhấn Play lại.
+### Auto-next Chapter
+Toggle the **⏭** button in the toolbar: when a chapter finishes, the extension automatically navigates to the next chapter and begins reading without pressing Play again.
 
-### Giao diện
+### UI
 - Dark mode toggle
-- Tăng/giảm font size và window size
-- Highlight đoạn đang đọc với word-level marking
+- Adjustable font size and window size
+- Highlighted active sentence with word-level marking
 
 ---
 
-## Hỗ trợ webnovel.vn
+## webnovel.vn Support
 
-Handler riêng `js/content/webnovel-vn.js` xử lý hai cấu trúc HTML của trang:
+Dedicated handler `js/content/webnovel-vn.js` handles two HTML structures:
 
-**Chương miễn phí** (`<br><br>` based)
-- Walk DOM thủ công, skip ad divs (`ins.adsbygoogle`)
-- Check CSS visibility để bỏ qua hidden elements
+**Free chapters** (`<br><br>` based)
+- Walks DOM manually, skips ad divs (`ins.adsbygoogle`)
+- Checks CSS visibility to skip hidden elements
 
-**Chương trả phí / unlocked** (`<P display:flex>` + `<SPAN>` con)
-- Phát hiện tự động qua số lượng `<p>` element
-- Mỗi `<p>` = 1 đoạn văn riêng
-- Sort SPAN con theo CSS `order` value rồi theo vị trí visual (`getBoundingClientRect`) để undo CSS flex-order scrambling của site
+**Paid / unlocked chapters** (`<P display:flex>` + `<SPAN>` children)
+- Auto-detected via `<p>` element count
+- Each `<p>` = one paragraph
+- Child SPANs sorted by CSS `order` value then visual position (`getBoundingClientRect`) to undo the site's CSS flex-order scrambling
 
-**Auto-next chapter**: đọc `a[rel="next"]` để lấy URL chương sau.
-
----
-
-## Cài đặt (Load unpacked)
-
-1. Clone repo hoặc download ZIP
-2. Mở `chrome://extensions`
-3. Bật **Developer mode**
-4. Chọn **Load unpacked** → trỏ vào thư mục này
+**Auto-next chapter**: reads `a[rel="next"]` for the next chapter URL.
 
 ---
 
-## Cấu trúc project
+## Installation (Load Unpacked)
+
+1. Clone this repo or download ZIP
+2. Open `chrome://extensions`
+3. Enable **Developer mode**
+4. Click **Load unpacked** → point to this folder
+
+> Not yet published on the Chrome Web Store.
+
+---
+
+## Project Structure
 
 ```
 js/
-├── content.js              # Content script entry, route sites → handlers
+├── content.js              # Content script entry, routes sites to handlers
 ├── document.js             # Doc/Tab source, bilingual + original chunk logic
 ├── speech.js               # TTS engine wrapper, chunk playlist
 ├── player.js               # Playback control (play/pause/stop/forward/rewind)
@@ -79,10 +81,10 @@ js/
 
 ---
 
-## Phím tắt
+## Keyboard Shortcuts
 
-| Phím | Hành động |
-|------|-----------|
+| Key | Action |
+|-----|--------|
 | `Alt+P` | Play / Pause |
 | `Alt+O` | Play / Stop |
 | `Alt+,` | Rewind |
@@ -90,9 +92,9 @@ js/
 
 ---
 
-## Thêm handler cho site mới
+## Adding a Handler for a New Site
 
-1. Tạo `js/content/your-site.js`:
+1. Create `js/content/your-site.js`:
 
 ```javascript
 var readAloudDoc = new function() {
@@ -103,7 +105,7 @@ var readAloudDoc = new function() {
     return null
   }
 
-  // Optional: để auto-next chapter hoạt động
+  // Optional: required for auto-next chapter
   this.getNextPageUrl = function() {
     var next = document.querySelector('a[rel="next"]')
     return next ? next.href : null
@@ -112,12 +114,12 @@ var readAloudDoc = new function() {
   function parse() {
     var container = document.querySelector('#your-content-selector')
     if (!container) return null
-    // trả về array các đoạn văn string
+    // return array of paragraph strings
   }
 }
 ```
 
-2. Đăng ký trong `js/content.js`:
+2. Register in `js/content.js`:
 
 ```javascript
 else if (location.hostname == "your-site.com") return ["js/content/your-site.js"];
@@ -127,4 +129,4 @@ else if (location.hostname == "your-site.com") return ["js/content/your-site.js"
 
 ## Upstream
 
-Fork từ [ken107/read-aloud](https://github.com/ken107/read-aloud) — MIT License.
+Fork of [ken107/read-aloud](https://github.com/ken107/read-aloud) — MIT License.

@@ -300,7 +300,7 @@ function Doc(source, onEnd) {
     return readBilingualChunks(texts, chunkParaIndex, chunks, 0, rewinded)
   }
 
-  // "Gốc" mode: same sentence-level chunking as bilingual but skip EN reading
+  // Original mode: same sentence-level chunking as bilingual but skip EN reading
   async function readOriginalChunks(texts, textIndex, rewinded) {
     const chunks = []
     const chunkParaIndex = []
@@ -386,7 +386,7 @@ function Doc(source, onEnd) {
       : null
 
     activeSpeech.onEnd = function(err) {
-      console.log("[Bilingual] Gốc onEnd err=" + (err ? err.message : null))
+      console.log("[Bilingual] VN onEnd err=" + (err ? err.message : null))
       if (err) {
         if (onEnd) onEnd(err)
       } else {
@@ -419,7 +419,7 @@ function Doc(source, onEnd) {
           })
       }
     }
-    console.log("[Bilingual] Gốc play chunkIndex=" + chunkIndex)
+    console.log("[Bilingual] VN play chunkIndex=" + chunkIndex)
     if (rewinded && chunkIndex === 0) await activeSpeech.gotoEnd()
     return activeSpeech.play()
   }
