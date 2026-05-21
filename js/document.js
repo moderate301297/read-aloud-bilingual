@@ -300,44 +300,36 @@ function Doc(source, onEnd) {
     return readBilingualChunks(texts, chunkParaIndex, chunks, 0, rewinded)
   }
 
-  // Original mode: same sentence-level chunking as bilingual but skip EN reading
+  // Original mode: read each paragraph as a single TTS utterance
   async function readOriginalChunks(texts, textIndex, rewinded) {
-    const chunks = []
-    const chunkParaIndex = []
     bilingualChunks = null
     bilingualDisplayTexts = null
     bilingualChunkParaIndex = null
     translationCache.clear()
-    texts.slice(textIndex).filter(Boolean).forEach(function(text, i) {
-      splitIntoSentenceChunks(text).filter(function(c) { return c && !/^[\s.\n]+$/.test(c) }).forEach(function(chunk) {
-        chunks.push(chunk)
-        chunkParaIndex.push(textIndex + i)
-      })
-    })
-    return readOriginalChunkList(texts, chunkParaIndex, chunks, 0, rewinded)
+    return readOriginalParagraph(texts, textIndex, rewinded)
   }
 
-  async function readOriginalChunkList(displayTexts, chunkParaIndex, chunks, chunkIndex, rewinded) {
-    while (chunkIndex < chunks.length && !chunks[chunkIndex]) chunkIndex++
-    if (chunkIndex >= chunks.length) {
+  async function readOriginalParagraph(displayTexts, paraIndex, rewinded) {
+    while (paraIndex < displayTexts.length && !displayTexts[paraIndex]) paraIndex++
+    if (paraIndex >= displayTexts.length) {
       currentIndex++
       return readCurrent()
     }
     await wait(playbackState, "resumed")
     if (activeSpeech) return
-    activeSpeech = await getSpeech([chunks[chunkIndex]], "original")
-    patchBilingualGetInfo(activeSpeech, displayTexts, chunkParaIndex[chunkIndex], chunks[chunkIndex])
+    activeSpeech = await getSpeech([displayTexts[paraIndex]], "original")
+    patchBilingualGetInfo(activeSpeech, displayTexts, paraIndex, null)
     await wait(playbackState, "resumed")
     activeSpeech.onEnd = function(err) {
       if (err) {
         if (onEnd) onEnd(err)
       } else {
         activeSpeech = null
-        readOriginalChunkList(displayTexts, chunkParaIndex, chunks, chunkIndex + 1, false)
+        readOriginalParagraph(displayTexts, paraIndex + 1, false)
           .catch(function(err) { if (onEnd) onEnd(err) })
       }
     }
-    if (rewinded && chunkIndex === 0) await activeSpeech.gotoEnd()
+    if (rewinded && paraIndex === 0) await activeSpeech.gotoEnd()
     return activeSpeech.play()
   }
 
