@@ -192,6 +192,8 @@ function Doc(source, onEnd) {
   var bilingualDisplayTexts = null;
   var bilingualChunkParaIndex = null;
   var currentBilingualChunkIndex = null;
+  var originalDisplayTexts = null;
+  var currentOriginalParaIndex = null;
   var translationCache = new Map()
   const TRANSLATION_PREFETCH_WINDOW = 8
   var ready = source.ready
@@ -321,6 +323,8 @@ function Doc(source, onEnd) {
     bilingualDisplayTexts = null
     bilingualChunkParaIndex = null
     currentBilingualChunkIndex = null
+    originalDisplayTexts = texts
+    currentOriginalParaIndex = null
     translationCache.clear()
     return readOriginalParagraph(texts, textIndex, rewinded)
   }
@@ -328,9 +332,12 @@ function Doc(source, onEnd) {
   async function readOriginalParagraph(displayTexts, paraIndex, rewinded) {
     while (paraIndex < displayTexts.length && !displayTexts[paraIndex]) paraIndex++
     if (paraIndex >= displayTexts.length) {
+      originalDisplayTexts = null
+      currentOriginalParaIndex = null
       currentIndex++
       return readCurrent()
     }
+    currentOriginalParaIndex = paraIndex
     await wait(playbackState, "resumed")
     if (activeSpeech) return
     activeSpeech = await getSpeech([displayTexts[paraIndex]], "original")
@@ -605,6 +612,13 @@ function Doc(source, onEnd) {
         readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, currentBilingualChunkIndex + 1, false)
           .catch(function(err) { if (onEnd) onEnd(err) })
       }
+      else if (originalDisplayTexts && currentOriginalParaIndex !== null) {
+        activeSpeech.onEnd = null
+        activeSpeech.stop()
+        activeSpeech = null
+        readOriginalParagraph(originalDisplayTexts, currentOriginalParaIndex + 1, false)
+          .catch(function(err) { if (onEnd) onEnd(err) })
+      }
       else forwardPage()
     }
     else return Promise.reject(new Error("Can't forward, not active"));
@@ -623,6 +637,13 @@ function Doc(source, onEnd) {
         activeSpeech.stop()
         activeSpeech = null
         readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, currentBilingualChunkIndex - 1, false)
+          .catch(function(err) { if (onEnd) onEnd(err) })
+      }
+      else if (originalDisplayTexts && currentOriginalParaIndex !== null && currentOriginalParaIndex > 0) {
+        activeSpeech.onEnd = null
+        activeSpeech.stop()
+        activeSpeech = null
+        readOriginalParagraph(originalDisplayTexts, currentOriginalParaIndex - 1, false)
           .catch(function(err) { if (onEnd) onEnd(err) })
       }
       else rewindPage()
@@ -648,6 +669,15 @@ function Doc(source, onEnd) {
         if (found >= 0) chunkIndex = found
       }
       return readBilingualChunks(bilingualDisplayTexts, bilingualChunkParaIndex, bilingualChunks, chunkIndex, false)
+        .catch(function(err) { if (onEnd) onEnd(err) })
+    }
+    if (originalDisplayTexts) {
+      if (activeSpeech) {
+        activeSpeech.onEnd = null
+        activeSpeech.stop()
+        activeSpeech = null
+      }
+      return readOriginalParagraph(originalDisplayTexts, n, false)
         .catch(function(err) { if (onEnd) onEnd(err) })
     }
     if (activeSpeech) return activeSpeech.seek(n);
