@@ -1,9 +1,9 @@
 {
   "extension_name": {
-    "message": "Novel Reader: VN–EN Bilingual"
+    "message": "Nghe truyện trên web (có song ngữ)"
   },
   "extension_short_name": {
-    "message": "Novel Reader"
+    "message": "Nghe Truyện"
   },
   "extension_description": {
     "message": "Đọc truyện web tiếng Việt với chế độ song ngữ VN–EN. Từng câu được đọc tiếng Việt rồi dịch và đọc tiếng Anh. Hỗ trợ tự động chuyển chương."
