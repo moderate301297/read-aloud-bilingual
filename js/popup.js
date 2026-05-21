@@ -69,6 +69,8 @@ async function init() {
   $("#increase-window-size").click(changeWindowSize.bind(null, +1));
   $("#toggle-dark-mode").click(toggleDarkMode);
   $("#toggle-read-mode").click(toggleReadMode);
+  $("#toggle-auto-next").click(toggleAutoNext);
+  getSettings(["autoNextChapter"]).then(s => updateAutoNextButton(s.autoNextChapter));
   $("#settings-backdrop").click(closeSettings);
 
   // Close settings panel when options.html iframe clicks its close button
@@ -179,7 +181,7 @@ async function updateButtons() {
 
   if (showHighlighting && speech) {
     $("#highlight, #toolbar").show()
-    updateHighlighting(speech)
+    updateHighlighting(speech, settings.readMode)
   }
   else if (!showHighlighting || state === "STOPPED") {
     $("#highlight, #toolbar").hide()
@@ -188,7 +190,7 @@ async function updateButtons() {
   // else: brief transition (LOADING with no speech) — keep current visibility
 }
 
-function updateHighlighting(speech) {
+function updateHighlighting(speech, readMode) {
   var elem = $("#highlight");
   if (!elem.data("texts")
     || elem.data("texts").length != speech.texts.length
@@ -236,8 +238,12 @@ function updateHighlighting(speech) {
       scrollIntoView(child, elem)
     }
     const chunkKey = pos.chunkKey != null ? pos.chunkKey : pos.index
-    if (!prevPos || (prevPos.chunkKey != null ? prevPos.chunkKey !== pos.chunkKey : prevPos.index !== pos.index)) {
-      showTranslationFor(pos.chunkText || speech.texts[pos.index], chunkKey)
+    if (readMode !== "original") {
+      if (!prevPos || (prevPos.chunkKey != null ? prevPos.chunkKey !== pos.chunkKey : prevPos.index !== pos.index)) {
+        showTranslationFor(pos.chunkText || speech.texts[pos.index], chunkKey)
+      }
+    } else {
+      hideTranslatePopup()
     }
   }
 }
@@ -448,6 +454,18 @@ function showAnnouncement(ann) {
 function toggleDarkMode() {
   const darkMode = document.body.classList.toggle("dark-mode")
   updateSettings({darkMode})
+}
+
+async function toggleAutoNext() {
+  const {autoNextChapter} = await getSettings(["autoNextChapter"])
+  const newVal = !autoNextChapter
+  updateSettings({autoNextChapter: newVal})
+  updateAutoNextButton(newVal)
+}
+
+function updateAutoNextButton(enabled) {
+  $("#toggle-auto-next").toggleClass("active", !!enabled)
+    .attr("title", enabled ? "Tự chuyển chương: BẬT" : "Tự chuyển chương: TẮT")
 }
 
 async function toggleReadMode() {

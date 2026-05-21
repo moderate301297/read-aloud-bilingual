@@ -1,133 +1,130 @@
+# Read Aloud — Bilingual Fork
 
-<div align="center">
-	<img src="img/icon.png" width="128" height="128">
-	<br>
-	<img src="docs/images/logo-text-trans.png" width="391" height="66">
-	<br>
-	A <b>Text to Speech Voice Reader(Bilingual)</b> extension for your browser!
-</div>
+Extension đọc truyện online với chế độ song ngữ Việt–Anh, fork từ [Read Aloud](https://github.com/ken107/read-aloud) với các tính năng tùy chỉnh cho việc đọc tiểu thuyết web tiếng Việt.
 
-<div align="center">
-	<a href="https://chrome.google.com/webstore/detail/read-aloud-a-text-to-spee/hdhinadidafjejdhmfkjgnolgimiaplp">Chrome Web Store</a> | <a href="https://addons.mozilla.org/en-US/firefox/addon/read-aloud/">Firefox Addon</a> | <a href="https://blog.readaloud.app/">Blog</a> | <a href="https://readaloud.app/">Website</a> 
-</div>
+---
 
-<br>
+## Tính năng
 
-<div align="center">
-    <br> github stats:
-    <img src="https://badgen.net/github/stars/ken107/read-aloud" >
-    <img src="https://badgen.net/github/open-issues/ken107/read-aloud" >
-    <img src="https://badgen.net/github/open-prs/ken107/read-aloud" >
-    <img src="https://badgen.net/github/tag/ken107/read-aloud" >
-    <img src="https://badgen.net/github/license/ken107/read-aloud/" >
-    <br> chrome web store stats:
-    <img src="https://badgen.net/chrome-web-store/users/hdhinadidafjejdhmfkjgnolgimiaplp" >
-    <img src="https://badgen.net/chrome-web-store/rating/hdhinadidafjejdhmfkjgnolgimiaplp" >
-    <img src="https://badgen.net/chrome-web-store/rating-count/hdhinadidafjejdhmfkjgnolgimiaplp" >
-    <img src="https://badgen.net/chrome-web-store/v/hdhinadidafjejdhmfkjgnolgimiaplp" >
-    <br> firefox addon stats:
-    <img src="https://badgen.net/amo/users/read-aloud" >
-    <img src="https://badgen.net/amo/rating/read-aloud" >
-    <img src="https://badgen.net/amo/reviews/read-aloud" >
-    <img src="https://badgen.net/amo/v/read-aloud" >
-</div>
+### Chế độ đọc
 
-<br>
+| Nút | Mode | Hành vi |
+|-----|------|---------|
+| **Gốc+EN** | Bilingual | Đọc từng câu VN → dịch và đọc EN → câu tiếp theo |
+| **Gốc** | Original | Chỉ đọc bản gốc, highlight từng câu, không dịch |
 
-<div align="center">
-	<sub>A little browser extension built with ❤︎ by <a href="https://github.com/ken107">Hai Phan</a> and <a href="https://github.com/ken107/read-aloud/graphs/contributors">contributors</a> </sub>
-</div>
+### Bilingual (Gốc+EN)
+- Mỗi câu được split và đọc riêng (VN trước, EN sau)
+- Dịch tự động qua Google Translate / Gemini API
+- Prefetch dịch 8 chunk trước để không bị delay
+- Ô dịch EN hiện ngay bên dưới highlight
 
-<hr />
+### Original (Gốc)
+- Highlight từng câu theo từng paragraph như UI web
+- Không gọi API dịch, không hiển thị frame EN
+- Nhanh hơn, phù hợp khi đã quen nội dung
 
-## Reviews
->First impressions are super. Natural flowing voice and very helpful for multitasking and also giving my eyes a rest. 
+### Tự động chuyển chương
+Bật nút **⏭** trong toolbar: khi đọc xong chương, extension tự navigate sang chương tiếp theo và đọc luôn mà không cần nhấn Play lại.
 
-*Giuseppe*
+### Giao diện
+- Dark mode toggle
+- Tăng/giảm font size và window size
+- Highlight đoạn đang đọc với word-level marking
 
-> Thank you so much for this extension. I absolutely swear by it whenever I need to read any large chunk of text. The combination of hearing it in a clear voice (...)  Its fantastic, thank you so much.
+---
 
-*Abi*
+## Hỗ trợ webnovel.vn
 
-> LOVE this extension. I remember better when i hear a story vs reading
+Handler riêng `js/content/webnovel-vn.js` xử lý hai cấu trúc HTML của trang:
 
-*David*
+**Chương miễn phí** (`<br><br>` based)
+- Walk DOM thủ công, skip ad divs (`ins.adsbygoogle`)
+- Check CSS visibility để bỏ qua hidden elements
 
-> This is a phenomenal extension. Better than anything else I tryed so far. Simple, easy, customizable (...) I would recommend this whole heartedly to anyone who has dyslexia like me, or any other reasons for not beeing able to read comfortably at all times.
+**Chương trả phí / unlocked** (`<P display:flex>` + `<SPAN>` con)
+- Phát hiện tự động qua số lượng `<p>` element
+- Mỗi `<p>` = 1 đoạn văn riêng
+- Sort SPAN con theo CSS `order` value rồi theo vị trí visual (`getBoundingClientRect`) để undo CSS flex-order scrambling của site
 
-*Merlin*
+**Auto-next chapter**: đọc `a[rel="next"]` để lấy URL chương sau.
 
+---
 
-## Overview
-Read Aloud is a Chrome and Firefox extension that uses text-to-speech technology to convert webpage text to audio.&nbsp; It works on a variety of websites, including news sites, blogs, fan fiction, publications, textbooks, school and class websites, online universities and course materials.
+## Cài đặt (Load unpacked)
 
-Read Aloud is aimed at users who prefer to listen to content instead of reading, people with dyslexia or other learning disabilities, children learning to read, or simply to provide users with alternative way to consume web content.
+1. Clone repo hoặc download ZIP
+2. Mở `chrome://extensions`
+3. Bật **Developer mode**
+4. Chọn **Load unpacked** → trỏ vào thư mục này
 
-Read Aloud allows you to select from a variety of text-to-speech voices, including those provided natively by the browser, as well as by text-to-speech cloud service providers such as Google Wavenet, Amazon Polly, IBM Watson, and Microsoft.&nbsp; Some of the cloud-based voices may require additional in-app purchase to enable.
+---
 
-## Basic Usage
+## Cấu trúc project
 
-### Extension Button
-<img src="docs/images/demo-extension-button.gif">
-
-### Right Click Menu
-<img src="docs/images/demo-right-click.gif">
-
-
-## Advanced Usage
-
-### Shortcuts
-
-```yaml
-ALT/Option + P           : Play/Pause
-ALT/Option + O           : Stop
-ALT/Option + Comma       : Rewind
-ALT/Option + Period      : Forward
+```
+js/
+├── content.js              # Content script entry, route sites → handlers
+├── document.js             # Doc/Tab source, bilingual + original chunk logic
+├── speech.js               # TTS engine wrapper, chunk playlist
+├── player.js               # Playback control (play/pause/stop/forward/rewind)
+├── popup.js                # Popup UI, highlighting, translate popup
+├── tts-engines.js          # TTS engine adapters (browser, Google, AWS, Azure...)
+└── content/
+    ├── webnovel-vn.js      # webnovel.vn — VN novel site handler
+    ├── tiemtruyenchu.js    # tiemtruyenchu.com handler
+    ├── html-doc.js         # Generic HTML fallback
+    └── ...                 # Other site-specific handlers
 ```
 
-### Customization
+---
 
-You can change the voice, reading speed, pitch, or enable text highlighting:
+## Phím tắt
 
-1. Click the Read Aloud icon on the [Extensions menu](https://i.imgur.com/KTqFZ3Q.png).
-2. Stop any text that may be playing.
-3. Click on the Gear icon in the Read Aloud context menu. (It may take a second or two for settings to appear)
+| Phím | Hành động |
+|------|-----------|
+| `Alt+P` | Play / Pause |
+| `Alt+O` | Play / Stop |
+| `Alt+,` | Rewind |
+| `Alt+.` | Forward |
 
+---
 
-### Using Premium Voices
-[Using Premium Voices (Google Wavenet & Amazon Polly)](docs/usage/premium-voices.md)
+## Thêm handler cho site mới
 
+1. Tạo `js/content/your-site.js`:
 
-## Installation
+```javascript
+var readAloudDoc = new function() {
+  this.getCurrentIndex = function() { return 0 }
 
-### Chrome and Chromium-based browsers
-You can get the latest available Read Aloud Extension version from the [Chrome Web Store](https://chrome.google.com/webstore/detail/read-aloud-a-text-to-spee/hdhinadidafjejdhmfkjgnolgimiaplp).
+  this.getTexts = function(index) {
+    if (index == 0) return parse()
+    return null
+  }
 
-### Firefox
-You can get the latest version of Read Aloud Extension from the [Mozilla Add-ons website](https://addons.mozilla.org/en-US/firefox/addon/read-aloud/).
+  // Optional: để auto-next chapter hoạt động
+  this.getNextPageUrl = function() {
+    var next = document.querySelector('a[rel="next"]')
+    return next ? next.href : null
+  }
 
-#### Firefox install from source
+  function parse() {
+    var container = document.querySelector('#your-content-selector')
+    if (!container) return null
+    // trả về array các đoạn văn string
+  }
+}
+```
 
-1. Create a build directory with `mkdir build`
-2. Run `npm run-script package`
-3. Extract the resulting zip file. You should see a `manifest.json` which will be used later.
-4. In Firefox, first make sure there isn't an existing read-aloud add-on already installed
-5. type `about:debugging` in the Address bar and enter.
-6. Click on "This Firefox" then click "Load Unpackaged Extension"
-7. Select the `manifest.json` file produced earlier.
+2. Đăng ký trong `js/content.js`:
 
-## Contribute
+```javascript
+else if (location.hostname == "your-site.com") return ["js/content/your-site.js"];
+```
 
-- Star this GitHub repo :star:
-- Post about it on your social media (Twitter / Blogs / Facebook / Instagram etc).
-- Leave a positive review on the [Chrome Web Store](https://chrome.google.com/webstore/detail/read-aloud-a-text-to-spee/hdhinadidafjejdhmfkjgnolgimiaplp) or [Firefox Addon](https://addons.mozilla.org/en-US/firefox/addon/read-aloud/) pages.
-- Create pull requests, submit bugs, suggest new features or documentation updates 🛠 
-	- To do so, go to [this page](https://github.com/ken107/read-aloud/issues) and click the *New issue* button.
+---
 
+## Upstream
 
-## Credits
-
-### Images
-
- - [Streamline Labs](https://lab.streamlineicons.com/)
- - [Freepik](https://www.freepik.com/free-vector/colorful-memphis-design-background-vector_3893585.htm)
+Fork từ [ken107/read-aloud](https://github.com/ken107/read-aloud) — MIT License.

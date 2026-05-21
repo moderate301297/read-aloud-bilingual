@@ -26,12 +26,13 @@ function SimpleSource(texts, opts) {
 function TabSource() {
   var waiting = true;
   var sendToSource;
+  var sourceTabId = null;
 
   this.ready = brapi.storage.local.get(["sourceUri"])
     .then(({sourceUri: uri}) => {
       if (uri.startsWith("contentscript:")) {
-        const tabId = Number(uri.substr(14))
-        sendToSource = sendToContentScript.bind(null, tabId)
+        sourceTabId = Number(uri.substr(14))
+        sendToSource = sendToContentScript.bind(null, sourceTabId)
         return sendToSource({method: "getDocumentInfo"})
       }
       else if (uri.startsWith("epubreader:")) {
@@ -63,10 +64,24 @@ function TabSource() {
     return sendToSource({method: "getCurrentIndex"})
       .finally(function() {waiting = false})
   }
-  this.getTexts = function(index, quietly) {
+  this.getTexts = async function(index, quietly) {
     waiting = true;
-    return sendToSource({method: "getTexts", args: [index, quietly]})
-      .finally(function() {waiting = false})
+    try {
+      const texts = await sendToSource({method: "getTexts", args: [index, quietly]})
+      if (texts !== null || index === 0 || !sourceTabId) return texts
+
+      // End of chapter — check for auto-next
+      const {autoNextChapter} = await brapi.storage.local.get(["autoNextChapter"])
+      if (!autoNextChapter) return null
+
+      const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(() => null)
+      if (!nextUrl) return null
+
+      await navigateTabAndInject(sourceTabId, nextUrl)
+      return sendToSource({method: "getTexts", args: [0, quietly]})
+    } finally {
+      waiting = false
+    }
   }
   this.close = function() {
     return Promise.resolve();
@@ -74,6 +89,34 @@ function TabSource() {
   this.getUri = function() {
     return this.ready
       .then(function(info) {return info.url})
+  }
+
+  async function navigateTabAndInject(tabId, url) {
+    await brapi.tabs.update(tabId, {url})
+    // Wait for the tab to finish loading
+    await new Promise(resolve => {
+      function onUpdated(id, info) {
+        if (id === tabId && info.status === 'complete') {
+          brapi.tabs.onUpdated.removeListener(onUpdated)
+          setTimeout(resolve, 400)
+        }
+      }
+      brapi.tabs.onUpdated.addListener(onUpdated)
+    })
+    // Re-inject base content scripts
+    const target = {tabId}
+    await brapi.scripting.executeScript({target, files: [
+      "js/rxjs.umd.min.js",
+      "js/jquery-3.7.1.min.js",
+      "js/defaults.js",
+      "js/messaging.js",
+      "js/content.js",
+    ]})
+    // Inject site-specific handler
+    const files = await brapi.tabs.sendMessage(tabId, {dest: "contentScript", method: "getRequireJs"})
+    if (files && files.length) {
+      await brapi.scripting.executeScript({target, files})
+    }
   }
 
   async function sendToContentScript(tabId, message) {
@@ -209,24 +252,7 @@ function Doc(source, onEnd) {
     if (isBilingual) {
       return readBilingualTexts(texts, 0, rewinded)
     }
-    bilingualChunks = null
-    bilingualDisplayTexts = null
-    bilingualChunkParaIndex = null
-    translationCache.clear()
-    activeSpeech = await getSpeech(texts, readMode);
-    await wait(playbackState, "resumed")
-    activeSpeech.onEnd = function(err) {
-      if (err) {
-        if (onEnd) onEnd(err);
-      } else {
-        activeSpeech = null;
-        currentIndex++;
-        readCurrent()
-          .catch(function(err) { if (onEnd) onEnd(err) })
-      }
-    };
-    if (rewinded) await activeSpeech.gotoEnd();
-    return activeSpeech.play();
+    return readOriginalChunks(texts, 0, rewinded)
   }
 
   function patchBilingualGetInfo(speech, displayTexts, displayIndex, chunkText) {
@@ -272,6 +298,47 @@ function Doc(source, onEnd) {
     prefetchTranslations(chunks, 0)
     console.log("[Bilingual] chunks word counts:", chunks.map(function(c) { return c.split(/\s+/).length }))
     return readBilingualChunks(texts, chunkParaIndex, chunks, 0, rewinded)
+  }
+
+  // "Gốc" mode: same sentence-level chunking as bilingual but skip EN reading
+  async function readOriginalChunks(texts, textIndex, rewinded) {
+    const chunks = []
+    const chunkParaIndex = []
+    bilingualChunks = null
+    bilingualDisplayTexts = null
+    bilingualChunkParaIndex = null
+    translationCache.clear()
+    texts.slice(textIndex).filter(Boolean).forEach(function(text, i) {
+      splitIntoSentenceChunks(text).filter(function(c) { return c && !/^[\s.\n]+$/.test(c) }).forEach(function(chunk) {
+        chunks.push(chunk)
+        chunkParaIndex.push(textIndex + i)
+      })
+    })
+    return readOriginalChunkList(texts, chunkParaIndex, chunks, 0, rewinded)
+  }
+
+  async function readOriginalChunkList(displayTexts, chunkParaIndex, chunks, chunkIndex, rewinded) {
+    while (chunkIndex < chunks.length && !chunks[chunkIndex]) chunkIndex++
+    if (chunkIndex >= chunks.length) {
+      currentIndex++
+      return readCurrent()
+    }
+    await wait(playbackState, "resumed")
+    if (activeSpeech) return
+    activeSpeech = await getSpeech([chunks[chunkIndex]], "original")
+    patchBilingualGetInfo(activeSpeech, displayTexts, chunkParaIndex[chunkIndex], chunks[chunkIndex])
+    await wait(playbackState, "resumed")
+    activeSpeech.onEnd = function(err) {
+      if (err) {
+        if (onEnd) onEnd(err)
+      } else {
+        activeSpeech = null
+        readOriginalChunkList(displayTexts, chunkParaIndex, chunks, chunkIndex + 1, false)
+          .catch(function(err) { if (onEnd) onEnd(err) })
+      }
+    }
+    if (rewinded && chunkIndex === 0) await activeSpeech.gotoEnd()
+    return activeSpeech.play()
   }
 
   // 1 clause = 1 chunk, split on sentence-ending and comma punctuation

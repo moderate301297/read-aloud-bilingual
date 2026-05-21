@@ -4,7 +4,8 @@
     getRequireJs: getRequireJs,
     getDocumentInfo: getInfo,
     getCurrentIndex: getCurrentIndex,
-    getTexts: getTexts
+    getTexts: getTexts,
+    getNextPageUrl: getNextPageUrl,
   })
 
   function getInfo() {
@@ -79,6 +80,11 @@
   function getSelectedText() {
     if (readAloudDoc.getSelectedText) return readAloudDoc.getSelectedText()
     return window.getSelection().toString().trim();
+  }
+
+  function getNextPageUrl() {
+    if (readAloudDoc.getNextPageUrl) return readAloudDoc.getNextPageUrl()
+    return null
   }
 
 

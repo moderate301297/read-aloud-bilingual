@@ -1,30 +1,28 @@
-# Read Aloud: A Text to Speech Voice Reader
+# Read Aloud — Bilingual Fork
 
-Tired of sitting, tired of reading? Click a button, jump on your bed, and have the article read aloud to you.
+Extension đọc truyện online với chế độ song ngữ Việt–Anh, fork từ [ken107/read-aloud](https://github.com/ken107/read-aloud).
 
-**Note:** It's not possible to read the extension installation market page, please navigate to another site like [wikipedia](https://en.wikipedia.org/wiki/Speech_synthesis) for testing after installation.
+**Lưu ý:** Không thể đọc trực tiếp trang cài đặt extension. Sau khi cài, hãy vào một trang web bất kỳ (ví dụ [Wikipedia](https://en.wikipedia.org/wiki/Speech_synthesis)) để test.
 
-## Features:
+## Tính năng chính:
 
-- Choose from male or female voices.
-- Choose from a range of free voices or use Amazon Polly or Google Wavenet paid voices.
-- Change the pitch of the voice and the reading speed.
-- Supports PDF.
-- Available on Firefox browser and Chromium / Chrome browser.
-- Supports keyboard shortcuts for quick actions.
+- Chế độ **Gốc+EN**: đọc từng câu tiếng Việt → dịch và đọc tiếng Anh → câu tiếp theo.
+- Chế độ **Gốc**: chỉ đọc bản gốc, highlight từng câu, không gọi API dịch.
+- Dịch tự động qua Google Translate / Gemini API, prefetch 8 chunk để không bị delay.
+- Tự động chuyển chương khi đọc xong.
+- Hỗ trợ webnovel.vn (cả chương miễn phí lẫn chương trả phí với CSS scrambling).
+- Dark mode, tăng/giảm font size, phím tắt.
 
-It works on a variety of websites, including news sites, blogs, fan fiction, publications, textbooks, school and class websites, online universities and course materials.
+## Giọng đọc
 
-## Voices
+Hỗ trợ giọng đọc tích hợp sẵn của trình duyệt và các dịch vụ cloud như Google Wavenet, Amazon Polly, Microsoft Azure.
 
-Read Aloud allows you to select from a variety of text-to-speech voices, including those provided natively by the browser, as well as by text-to-speech cloud service providers such as Google Wavenet, Amazon Polly, IBM Watson, and Microsoft. Some of the cloud-based voices may require additional in-app purchase to enable.
+## Hướng dẫn sử dụng
 
-# Usage Guides
+Xem tại [README](https://github.com/moderate301297/read-aloud-bilingual#readme).
 
-You can find the usage guides [here](https://github.com/ken107/read-aloud#usage-guides).
+## Về dự án
 
-## About
+Fork cá nhân từ [ken107/read-aloud](https://github.com/ken107/read-aloud) — tùy chỉnh cho việc đọc tiểu thuyết web tiếng Việt.
 
-Read Aloud is aimed at users who prefer to listen to content instead of reading, people with dyslexia or other learning disabilities, children learning to read, learning foreign language or simply to provide users with alternative way to consume web content.
-
-Read Aloud is an open-source project I created in my spare time to satisfy my own need. I'm surprised that it has become quite popular and glad that it's been useful to many people. If you wish to contribute bug fixes or translations, please visit the GitHub page (https://github.com/ken107/read-aloud). If you see bugs or have suggestions to make the extension better, please don't hesitate to provide feedback via the "report issue" link inside the app.
+Nếu gặp lỗi hoặc có góp ý, vui lòng tạo issue tại [GitHub Issues](https://github.com/moderate301297/read-aloud-bilingual/issues).
