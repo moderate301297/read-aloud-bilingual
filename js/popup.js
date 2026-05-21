@@ -465,7 +465,7 @@ async function toggleAutoNext() {
 
 function updateAutoNextButton(enabled) {
   $("#toggle-auto-next").toggleClass("active", !!enabled)
-    .attr("title", enabled ? "Auto-next chapter: ON" : "Auto-next chapter: OFF")
+    .attr("title", enabled ? brapi.i18n.getMessage("btn_auto_next_on") : brapi.i18n.getMessage("btn_auto_next_off"))
 }
 
 async function toggleReadMode() {

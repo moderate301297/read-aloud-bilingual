@@ -38,6 +38,12 @@
   "btn_auto_next": {
     "message": "Auto-advance to next chapter"
   },
+  "btn_auto_next_on": {
+    "message": "Auto-next chapter: ON"
+  },
+  "btn_auto_next_off": {
+    "message": "Auto-next chapter: OFF"
+  },
   "btn_decrease_window": {
     "message": "Decrease window size"
   },

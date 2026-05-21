@@ -38,6 +38,12 @@
   "btn_auto_next": {
     "message": "Tự động chuyển chương tiếp theo"
   },
+  "btn_auto_next_on": {
+    "message": "Tự chuyển chương: BẬT"
+  },
+  "btn_auto_next_off": {
+    "message": "Tự chuyển chương: TẮT"
+  },
   "btn_decrease_window": {
     "message": "Thu nhỏ cửa sổ"
   },
