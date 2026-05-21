@@ -8,6 +8,42 @@
   "extension_description": {
     "message": "Đọc truyện web tiếng Việt với chế độ song ngữ VN–EN. Từng câu được đọc tiếng Việt rồi dịch và đọc tiếng Anh. Hỗ trợ tự động chuyển chương."
   },
+  "btn_toggle_read_mode": {
+    "message": "Chuyển chế độ: chỉ đọc gốc / đọc gốc + dịch tiếng Anh"
+  },
+  "btn_settings": {
+    "message": "Cài đặt"
+  },
+  "btn_rewind": {
+    "message": "Tua lại (Alt+,)"
+  },
+  "btn_play": {
+    "message": "Phát / Dừng (Alt+O)"
+  },
+  "btn_pause": {
+    "message": "Tạm dừng / Tiếp tục (Alt+P)"
+  },
+  "btn_forward": {
+    "message": "Tua tới (Alt+.)"
+  },
+  "btn_decrease_font": {
+    "message": "Giảm cỡ chữ"
+  },
+  "btn_increase_font": {
+    "message": "Tăng cỡ chữ"
+  },
+  "btn_dark_mode": {
+    "message": "Bật / tắt chế độ tối"
+  },
+  "btn_auto_next": {
+    "message": "Tự động chuyển chương tiếp theo"
+  },
+  "btn_decrease_window": {
+    "message": "Thu nhỏ cửa sổ"
+  },
+  "btn_increase_window": {
+    "message": "Phóng to cửa sổ"
+  },
   "options_heading": {
     "message": "Tùy Chọn"
   },

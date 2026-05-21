@@ -8,6 +8,42 @@
   "extension_description": {
     "message": "Read Vietnamese web novels with bilingual VN–EN TTS. Reads each sentence in Vietnamese then English. Auto-next chapter supported."
   },
+  "btn_toggle_read_mode": {
+    "message": "Toggle: original only / original + English translation"
+  },
+  "btn_settings": {
+    "message": "Settings"
+  },
+  "btn_rewind": {
+    "message": "Rewind — go back (Alt+,)"
+  },
+  "btn_play": {
+    "message": "Play / Stop (Alt+O)"
+  },
+  "btn_pause": {
+    "message": "Pause / Resume (Alt+P)"
+  },
+  "btn_forward": {
+    "message": "Forward — skip ahead (Alt+.)"
+  },
+  "btn_decrease_font": {
+    "message": "Decrease font size"
+  },
+  "btn_increase_font": {
+    "message": "Increase font size"
+  },
+  "btn_dark_mode": {
+    "message": "Toggle dark mode"
+  },
+  "btn_auto_next": {
+    "message": "Auto-advance to next chapter"
+  },
+  "btn_decrease_window": {
+    "message": "Decrease window size"
+  },
+  "btn_increase_window": {
+    "message": "Increase window size"
+  },
   "options_heading": {
     "message": "Options"
   },
