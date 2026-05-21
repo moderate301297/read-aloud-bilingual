@@ -194,17 +194,27 @@ if (queryString.has("opener")) {
   brapi.runtime.sendMessage({dest: queryString.get("opener"), method: "playerCheckIn"})
     .catch(console.error)
 } else {
-  // Retry playerCheckIn in case the service worker is still restarting
+  // Hold a keep-alive port during startup so the SW doesn't terminate before
+  // checkInWithSW completes. setupPortKeepalive() takes over once idle→active.
   ;(async function checkInWithSW() {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        await bgPageInvoke("playerCheckIn")
-        return
-      } catch (err) {
-        if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+    let startupPort = null
+    try {
+      startupPort = brapi.runtime.connect({name: 'keepAlive'})
+    } catch (_) {}
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          await bgPageInvoke("playerCheckIn")
+          return
+        } catch (err) {
+          if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+        }
       }
+      console.warn("playerCheckIn: failed to reach service worker after 5 attempts")
+    } finally {
+      // Release startup port; setupPortKeepalive manages keep-alive from here
+      if (startupPort) try { startupPort.disconnect() } catch (_) {}
     }
-    console.error("playerCheckIn: failed to reach service worker after 5 attempts")
   })()
 }
 
