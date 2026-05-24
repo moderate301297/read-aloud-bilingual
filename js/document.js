@@ -106,16 +106,27 @@ function TabSource() {
   }
 
   async function navigateTabAndInject(tabId, url) {
-    await brapi.tabs.update(tabId, {url})
-    // Wait for the tab to finish loading
-    await new Promise(resolve => {
+    // Register listener BEFORE updating URL to avoid race condition where
+    // a fast-loading page fires 'complete' before the listener is attached,
+    // causing the promise to hang and the chapter never switching.
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        brapi.tabs.onUpdated.removeListener(onUpdated)
+        reject(new Error("Tab navigation timed out"))
+      }, 15000)
       function onUpdated(id, info) {
         if (id === tabId && info.status === 'complete') {
           brapi.tabs.onUpdated.removeListener(onUpdated)
+          clearTimeout(timeout)
           setTimeout(resolve, 400)
         }
       }
       brapi.tabs.onUpdated.addListener(onUpdated)
+      brapi.tabs.update(tabId, {url}).catch(err => {
+        brapi.tabs.onUpdated.removeListener(onUpdated)
+        clearTimeout(timeout)
+        reject(err)
+      })
     })
     // Re-inject base content scripts
     const target = {tabId}
