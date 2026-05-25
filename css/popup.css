@@ -137,9 +137,16 @@ body:not(.is-popup) #toolbar .btn-group.window-size {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 4px;
   margin-bottom: 2px;
+}
+
+#top-bar-left,
+#top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 #top-bar #btnSettings {
@@ -147,13 +154,46 @@ body:not(.is-popup) #toolbar .btn-group.window-size {
   line-height: 1;
 }
 
-#top-bar #btnSettings .material-icons {
+#top-bar #btnSettings .material-icons,
+#top-bar #toggle-dark-mode .material-icons,
+#top-bar #toggle-auto-next .material-icons {
   font-size: 1em;
   vertical-align: middle;
 }
 
+#top-bar #toggle-dark-mode,
+#top-bar #toggle-auto-next {
+  padding: .25rem .4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.auto-next-label {
+  font-size: .75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 #toggle-read-mode {
   white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+  gap: 1px;
+}
+
+.read-mode-hint {
+  font-size: .58rem;
+  opacity: 0.55;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.en-active .read-mode-hint {
+  opacity: 0.75;
 }
 #toggle-read-mode.en-active {
   background-color: #2980b9;

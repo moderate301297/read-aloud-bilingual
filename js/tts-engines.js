@@ -311,13 +311,7 @@ function PremiumTtsEngine(serviceUrl) {
   var nextStartTime = 0;
   this.prepare = function(options) {
     readyPromise = immediate(async () => {
-      const authToken = await getAuthToken()
-      if (isPremiumVoice(options.voice) && !options.voice.autoSelect) {
-        if (!authToken) throw new Error(JSON.stringify({code: "error_login_required"}));
-        const account = await getAccountInfo(authToken)
-        if (!account) throw new Error(JSON.stringify({code: "error_login_required"}));
-        if (!account.balance) throw new Error(JSON.stringify({code: "error_payment_required"}));
-      }
+      const authToken = await getAuthToken().catch(() => null)
       return {
         authToken,
         clientId: await getUniqueClientId(),

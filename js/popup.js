@@ -79,7 +79,7 @@ async function init() {
   })
 
   refreshSize();
-  checkAnnouncements();
+  // checkAnnouncements();
   getSettings(["readMode"]).then(s => updateReadModeButton(s.readMode || "english"));
 
   const {state} = await bgPageInvoke("getPlaybackState")
@@ -479,9 +479,8 @@ async function toggleReadMode() {
 
 function updateReadModeButton(mode) {
   const isEN = mode === "english"
-  $("#toggle-read-mode")
-    .text(isEN ? "Gốc+EN" : "Gốc")
-    .toggleClass("en-active", isEN)
+  $("#toggle-read-mode .read-mode-label").text(isEN ? "Gốc+EN" : "Gốc")
+  $("#toggle-read-mode").toggleClass("en-active", isEN)
 }
 
 

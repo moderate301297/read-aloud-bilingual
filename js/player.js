@@ -361,10 +361,10 @@ function getPlaybackState() {
       })
   }
   else {
-    return {
+    return Promise.resolve({
       state: "STOPPED",
       playbackError: errorToJson(playbackError),
-    }
+    })
   }
 }
 

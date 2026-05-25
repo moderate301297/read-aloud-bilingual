@@ -24,12 +24,24 @@
 </head>
 <body>
   <div id="top-bar">
-    <button id="toggle-read-mode" type="button" class="btn btn-sm btn-light" title="__MSG_btn_toggle_read_mode__">
-      Gốc+EN
-    </button>
-    <button id="btnSettings" type="button" class="btn btn-sm btn-light" title="__MSG_btn_settings__">
-      <i class="material-icons">settings</i>
-    </button>
+    <div id="top-bar-left">
+      <button id="toggle-dark-mode" type="button" class="btn btn-sm btn-light" title="__MSG_btn_dark_mode__">
+        <i class="material-icons">dark_mode</i>
+      </button>
+      <button id="toggle-auto-next" type="button" class="btn btn-sm btn-light" title="__MSG_btn_auto_next__">
+        <i class="material-icons">skip_next</i>
+        <span class="auto-next-label">Auto next</span>
+      </button>
+    </div>
+    <div id="top-bar-right">
+      <button id="toggle-read-mode" type="button" class="btn btn-sm btn-light" title="__MSG_btn_toggle_read_mode__">
+        <span class="read-mode-label">Gốc+EN</span>
+        <span class="read-mode-hint">nhấn để đổi</span>
+      </button>
+      <button id="btnSettings" type="button" class="btn btn-sm btn-light" title="__MSG_btn_settings__">
+        <i class="material-icons">settings</i>
+      </button>
+    </div>
   </div>
   <div id="status">
   </div>
@@ -52,16 +64,6 @@
       </button>
       <button id="increase-font-size" type="button" class="btn btn-sm btn-light" title="__MSG_btn_increase_font__">
         A+
-      </button>
-    </div>
-    <div class="btn-group">
-      <button id="toggle-dark-mode" type="button" class="btn btn-sm btn-light" title="__MSG_btn_dark_mode__">
-        <i class="material-icons">dark_mode</i>
-      </button>
-    </div>
-    <div class="btn-group">
-      <button id="toggle-auto-next" type="button" class="btn btn-sm btn-light" title="__MSG_btn_auto_next__">
-        <i class="material-icons">skip_next</i>
       </button>
     </div>
     <div class="btn-group window-size">

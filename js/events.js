@@ -61,6 +61,7 @@ var handlers = {
   authWavenet: authWavenet,
   managePiperVoices,
   manageSupertonicVoices,
+  playerCheckIn: function() {},
 }
 
 registerMessageListener("serviceWorker", handlers)

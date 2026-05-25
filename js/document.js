@@ -27,6 +27,11 @@ function TabSource() {
   var waiting = true;
   var sendToSource;
   var sourceTabId = null;
+  var navigatedToStart = false;
+  this.didNavigate = function() {
+    if (navigatedToStart) { navigatedToStart = false; return true }
+    return false
+  }
 
   this.ready = brapi.storage.local.get(["sourceUri"])
     .then(({sourceUri: uri}) => {
@@ -92,6 +97,7 @@ function TabSource() {
       }
 
       await navigateTabAndInject(sourceTabId, nextUrl)
+      navigatedToStart = true
       return sendToSource({method: "getTexts", args: [0, quietly]})
     } finally {
       waiting = false
@@ -137,8 +143,17 @@ function TabSource() {
       "js/messaging.js",
       "js/content.js",
     ]})
-    // Inject site-specific handler
-    const files = await brapi.tabs.sendMessage(tabId, {dest: "contentScript", method: "getRequireJs"})
+    // Inject site-specific handler — retry in case content script needs time to init
+    let files = null
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        files = await brapi.tabs.sendMessage(tabId, {dest: "contentScript", method: "getRequireJs"})
+        break
+      } catch (err) {
+        if (attempt < 3) await new Promise(r => setTimeout(r, 500))
+        else throw err
+      }
+    }
     if (files && files.length) {
       await brapi.scripting.executeScript({target, files})
     }
@@ -249,6 +264,7 @@ function Doc(source, onEnd) {
   async function readCurrent(rewinded) {
     console.log("[Doc] readCurrent index=" + currentIndex + " activeSpeech=" + !!activeSpeech)
     const texts = await source.getTexts(currentIndex).catch(err => null)
+    if (source.didNavigate && source.didNavigate()) currentIndex = 0
     await wait(playbackState, "resumed")
     if (texts) {
       if (texts.length) {
