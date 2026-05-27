@@ -8,6 +8,35 @@ registerMessageListener("popup", {
   }
 })
 
+;(function() {
+  var navToastTimer = null
+
+  function showNavToast(message, isWarning) {
+    var toast = document.getElementById("nav-toast")
+    if (!toast) return
+    toast.textContent = message
+    toast.className = isWarning ? "warning" : ""
+    toast.style.display = "block"
+    if (navToastTimer) clearTimeout(navToastTimer)
+    navToastTimer = setTimeout(function() {
+      toast.style.display = "none"
+      toast.className = ""
+      navToastTimer = null
+    }, isWarning ? 30000 : 8000)
+  }
+
+  document.addEventListener("readAloudNavError", function(e) {
+    var detail = e.detail || {}
+    var reason = detail.message || "Unknown error"
+    showNavToast("Không chuyển chương được: " + reason, false)
+  })
+
+  document.addEventListener("readAloudNavWaiting", function(e) {
+    var detail = e.detail || {}
+    showNavToast(detail.message || "Tab truyện đang bị tạm dừng.", true)
+  })
+})()
+
 const engineInitializingSubject = new rxjs.Subject()
 engineInitializingSubject
   .pipe(

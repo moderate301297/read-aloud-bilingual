@@ -2,6 +2,39 @@
 body {
   margin: 20px 15px 10px 15px;
 }
+
+#nav-toast {
+  display: none;
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #c0392b;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: .78rem;
+  line-height: 1.4;
+  text-align: center;
+  z-index: 300;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  max-width: 92%;
+  word-break: break-word;
+  animation: nav-toast-in 0.2s ease;
+}
+@keyframes nav-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.dark-mode #nav-toast {
+  background: #8b1a1a;
+}
+#nav-toast.warning {
+  background: #d35400;
+}
+.dark-mode #nav-toast.warning {
+  background: #a04000;
+}
 .dark-mode a {
   color: yellowgreen;
 }

@@ -96,9 +96,17 @@ function TabSource() {
         })
       }
 
-      await navigateTabAndInject(sourceTabId, nextUrl)
-      navigatedToStart = true
-      return sendToSource({method: "getTexts", args: [0, quietly]})
+      try {
+        await navigateTabAndInject(sourceTabId, nextUrl)
+        navigatedToStart = true
+        return await sendToSource({method: "getTexts", args: [0, quietly]})
+      } catch (navErr) {
+        navigatedToStart = false
+        document.dispatchEvent(new CustomEvent("readAloudNavError", {
+          detail: { message: navErr.message, url: nextUrl }
+        }))
+        return null
+      }
     } finally {
       waiting = false
     }
@@ -116,21 +124,46 @@ function TabSource() {
     // a fast-loading page fires 'complete' before the listener is attached,
     // causing the promise to hang and the chapter never switching.
     await new Promise((resolve, reject) => {
+      let warned = false
+
+      // If the tab is still discarded 4 s after tabs.update, Chrome's Memory
+      // Saver is deferring the load until the tab is made active. Warn the
+      // user so they know to open the tab; keep listening — once they activate
+      // it the real 'complete' will fire and navigation will finish normally.
+      const warnTimer = setTimeout(async () => {
+        try {
+          const tab = await brapi.tabs.get(tabId)
+          if (tab.discarded && !warned) {
+            warned = true
+            document.dispatchEvent(new CustomEvent("readAloudNavWaiting", {
+              detail: { message: "Tab truyện đang bị Chrome tạm dừng. Nhấp vào tab truyện để tiếp tục chương mới." }
+            }))
+          }
+        } catch (_) {}
+      }, 4000)
+
       const timeout = setTimeout(() => {
+        clearTimeout(warnTimer)
         brapi.tabs.onUpdated.removeListener(onUpdated)
-        reject(new Error("Tab navigation timed out"))
-      }, 15000)
-      function onUpdated(id, info) {
-        if (id === tabId && info.status === 'complete') {
-          brapi.tabs.onUpdated.removeListener(onUpdated)
-          clearTimeout(timeout)
-          setTimeout(resolve, 400)
-        }
+        reject(new Error("Tab navigation timed out after 20s"))
+      }, 20000)
+
+      // Use 3rd argument (full tab object) to skip spurious 'complete' events
+      // fired for discarded tabs — Chrome fires status:'complete' on a discarded
+      // tab immediately after tabs.update without actually loading the page.
+      function onUpdated(id, info, tab) {
+        if (id !== tabId || info.status !== 'complete') return
+        if (tab.discarded) return
+        brapi.tabs.onUpdated.removeListener(onUpdated)
+        clearTimeout(timeout)
+        clearTimeout(warnTimer)
+        setTimeout(resolve, 400)
       }
       brapi.tabs.onUpdated.addListener(onUpdated)
       brapi.tabs.update(tabId, {url}).catch(err => {
         brapi.tabs.onUpdated.removeListener(onUpdated)
         clearTimeout(timeout)
+        clearTimeout(warnTimer)
         reject(err)
       })
     })
