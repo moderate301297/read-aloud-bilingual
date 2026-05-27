@@ -97,6 +97,13 @@ function TabSource() {
       }
 
       try {
+        if (top !== self) {
+          // Embedded player (Android): navigating the parent tab destroys this iframe.
+          // Delegate to the service worker which survives page navigation and will
+          // re-inject the player + restart playback on the new chapter.
+          bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl]).catch(console.error)
+          return null
+        }
         await navigateTabAndInject(sourceTabId, nextUrl)
         navigatedToStart = true
         return await sendToSource({method: "getTexts", args: [0, quietly]})

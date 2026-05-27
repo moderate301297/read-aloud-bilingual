@@ -1,6 +1,6 @@
 {
   "name": "read-aloud-bilingual",
-  "version": "1.0.1",
+  "version": "1.2.1",
   "description": "Chrome extension for reading Vietnamese web novels with bilingual VN–EN mode. Fork of ken107/read-aloud.",
   "directories": {
     "doc": "docs"

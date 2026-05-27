@@ -61,6 +61,7 @@ var handlers = {
   authWavenet: authWavenet,
   managePiperVoices,
   manageSupertonicVoices,
+  autoNextChapter: autoNextChapter,
   playerCheckIn: function() {},
 }
 
@@ -538,4 +539,59 @@ async function sendToPlayer(message) {
   ])
   if (result && result.error) throw result.error
   else return result
+}
+
+
+// Auto-next chapter delegated from embedded player (Android/Kiwi).
+// The embedded player iframe is destroyed when its parent tab navigates,
+// so we handle navigation + player re-creation here in the service worker.
+async function autoNextChapter(tabId, nextUrl) {
+  await swNavigateTabAndInject(tabId, nextUrl)
+  await playTab(tabId)
+}
+
+async function swNavigateTabAndInject(tabId, url) {
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      brapi.tabs.onUpdated.removeListener(onUpdated)
+      reject(new Error("Tab navigation timed out after 20s"))
+    }, 20000)
+
+    function onUpdated(id, info, tab) {
+      if (id !== tabId || info.status !== 'complete') return
+      if (tab.discarded) return
+      brapi.tabs.onUpdated.removeListener(onUpdated)
+      clearTimeout(timeout)
+      setTimeout(resolve, 400)
+    }
+    brapi.tabs.onUpdated.addListener(onUpdated)
+    brapi.tabs.update(tabId, {url}).catch(err => {
+      brapi.tabs.onUpdated.removeListener(onUpdated)
+      clearTimeout(timeout)
+      reject(err)
+    })
+  })
+
+  const target = {tabId}
+  await brapi.scripting.executeScript({target, files: [
+    "js/rxjs.umd.min.js",
+    "js/jquery-3.7.1.min.js",
+    "js/defaults.js",
+    "js/messaging.js",
+    "js/content.js",
+  ]})
+
+  let files = null
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      files = await brapi.tabs.sendMessage(tabId, {dest: "contentScript", method: "getRequireJs"})
+      break
+    } catch (err) {
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500))
+      else throw err
+    }
+  }
+  if (files && files.length) {
+    await brapi.scripting.executeScript({target, files})
+  }
 }
