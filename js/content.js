@@ -44,7 +44,7 @@
     else if (location.hostname == "archiveofourown.org") return ["js/content/archiveofourown.js"];
     else if (location.hostname == "tiemtruyenchu.com") return ["js/content/tiemtruyenchu.js"];
     else if (location.hostname == "webnovel.vn") return ["js/content/webnovel-vn.js"];
-    else if (location.hostname.endsWith("truyendich.ai")) return ["js/content/truyendich.js"];
+    else if (location.hostname.endsWith("truyendich.ai")) return ["js/content/html-doc.js", "js/content/truyendich.js"];
     else if (location.hostname == "chat.openai.com") return ["js/content/chatgpt.js"];
     else if (location.pathname.match(/readaloud\.html$/)
       || location.pathname.match(/\.pdf$/)
