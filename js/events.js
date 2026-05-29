@@ -552,22 +552,54 @@ async function autoNextChapter(tabId, nextUrl) {
 
 async function swNavigateTabAndInject(tabId, url) {
   await new Promise((resolve, reject) => {
+    let warned = false
+
+    // On Android/Kiwi, Kiwi can defer background-tab navigation until the tab
+    // is activated by the user (same as Chrome Memory Saver on desktop).
+    // Give a generous 90 s so the user just needs to tap the tab once.
     const timeout = setTimeout(() => {
       brapi.tabs.onUpdated.removeListener(onUpdated)
-      reject(new Error("Tab navigation timed out after 20s"))
-    }, 20000)
+      reject(new Error("Tab navigation timed out"))
+    }, 90000)
+
+    // After 5 s without a real 'complete', check if the tab is discarded and
+    // inject a toast into the active tab so the user knows to tap the novel tab.
+    const warnTimer = setTimeout(async () => {
+      try {
+        const tab = await brapi.tabs.get(tabId)
+        if (tab.discarded && !warned) {
+          warned = true
+          const [activeTab] = await brapi.tabs.query({active: true, currentWindow: true})
+          if (activeTab) {
+            brapi.scripting.executeScript({
+              target: {tabId: activeTab.id},
+              func: function(msg) {
+                var el = document.createElement('div')
+                el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:12px 22px;border-radius:8px;z-index:2147483647;font-size:14px;pointer-events:none'
+                el.textContent = msg
+                document.body.appendChild(el)
+                setTimeout(function() { el.remove() }, 8000)
+              },
+              args: ['Nhấp vào tab truyện để tiếp tục chương mới']
+            }).catch(function() {})
+          }
+        }
+      } catch (_) {}
+    }, 5000)
 
     function onUpdated(id, info, tab) {
       if (id !== tabId || info.status !== 'complete') return
       if (tab.discarded) return
       brapi.tabs.onUpdated.removeListener(onUpdated)
       clearTimeout(timeout)
-      setTimeout(resolve, 400)
+      clearTimeout(warnTimer)
+      setTimeout(resolve, 800)
     }
     brapi.tabs.onUpdated.addListener(onUpdated)
     brapi.tabs.update(tabId, {url}).catch(err => {
       brapi.tabs.onUpdated.removeListener(onUpdated)
       clearTimeout(timeout)
+      clearTimeout(warnTimer)
       reject(err)
     })
   })
@@ -581,13 +613,15 @@ async function swNavigateTabAndInject(tabId, url) {
     "js/content.js",
   ]})
 
+  // On Android, content scripts may take longer to set up their message listener.
+  // Retry generously before giving up.
   let files = null
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     try {
       files = await brapi.tabs.sendMessage(tabId, {dest: "contentScript", method: "getRequireJs"})
       break
     } catch (err) {
-      if (attempt < 3) await new Promise(r => setTimeout(r, 500))
+      if (attempt < 7) await new Promise(r => setTimeout(r, 800))
       else throw err
     }
   }

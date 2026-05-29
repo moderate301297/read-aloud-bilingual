@@ -7,14 +7,8 @@ var lastUrlPromise = Promise.resolve(null)
 
 
 const piperSubject = new rxjs.Subject()
-const piperObservable = rxjs.defer(() => {
-    createPiperFrame()
-    return piperSubject
-  })
-  .pipe(
-    rxjs.shareReplay({bufferSize: 1, refCount: false}),
-    rxjs.tap(raisePiperFrame)
-  )
+const piperObservable = rxjs.throwError(() => new Error("Piper TTS is not available in this version"))
+  .pipe(rxjs.shareReplay({bufferSize: 1, refCount: false}))
 const piperCallbacks = new rxjs.Subject()
 const piperDispatcher = makeDispatcher("piper-host", {
   advertiseVoices({voices}, sender) {
@@ -33,13 +27,8 @@ const piperDispatcher = makeDispatcher("piper-host", {
 
 
 const supertonicSubject = new rxjs.Subject()
-const supertonic$ = rxjs.defer(() => {
-  createSupertonicFrame()
-  return supertonicSubject
-}).pipe(
-  rxjs.shareReplay({bufferSize: 1, refCount: false}),
-  rxjs.tap(raiseSupertonicFrame)
-)
+const supertonic$ = rxjs.throwError(() => new Error("Supertonic TTS is not available in this version"))
+  .pipe(rxjs.shareReplay({bufferSize: 1, refCount: false}))
 const supertonicCallbacks = new rxjs.Subject()
 const supertonicDispatcher = makeDispatcher("supertonic-host", {
   advertiseVoices({voices}, sender) {
@@ -87,14 +76,8 @@ const audioPlayer = immediate(() => {
 
 
 const fasttextSubject = new rxjs.Subject()
-const fasttextObservable = rxjs.defer(() => {
-    createFasttextFrame()
-    return fasttextSubject
-  })
-  .pipe(
-    rxjs.startWith(null),
-    rxjs.shareReplay({bufferSize: 1, refCount: false})
-  )
+const fasttextObservable = rxjs.of(null)
+  .pipe(rxjs.shareReplay({bufferSize: 1, refCount: false}))
 const fasttextDispatcher = makeDispatcher("fasttext-host", {
   onServiceReady(args, sender) {
     fasttextSubject.next(sender)
@@ -602,17 +585,6 @@ function managePiperVoices() {
 }
 
 function createPiperFrame() {
-  const f = document.createElement("iframe")
-  f.id = "piper-frame"
-  f.src = "https://piper.ttstool.com/"
-  f.allow = "cross-origin-isolated"
-  f.style.position = "absolute"
-  f.style.left =
-  f.style.top = "0"
-  f.style.width =
-  f.style.height = "100%"
-  f.style.borderWidth = "0"
-  document.body.appendChild(f)
 }
 
 function raisePiperFrame() {
@@ -637,17 +609,6 @@ function manageSupertonicVoices() {
 }
 
 function createSupertonicFrame() {
-  const f = document.createElement("iframe")
-  f.id = "supertonic-frame"
-  f.src = "https://supertonic.ttstool.com/"
-  f.allow = "cross-origin-isolated"
-  f.style.position = "absolute"
-  f.style.left =
-  f.style.top = "0"
-  f.style.width =
-  f.style.height = "100%"
-  f.style.borderWidth = "0"
-  document.body.appendChild(f)
 }
 
 function raiseSupertonicFrame() {
@@ -656,10 +617,4 @@ function raiseSupertonicFrame() {
 }
 
 function createFasttextFrame() {
-  const f = document.createElement("iframe")
-  f.id = "fasttext-frame"
-  f.src = "https://ttstool.com/fasttext/index.html"
-  f.allow = "cross-origin-isolated"
-  f.style.display = "none"
-  document.body.appendChild(f)
 }

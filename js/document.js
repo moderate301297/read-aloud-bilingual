@@ -82,26 +82,22 @@ function TabSource() {
       const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(() => null)
       if (!nextUrl) return null
 
-      // Wait for screen to be visible before navigating — prevents rapid chapter-skipping
-      // when the OS interrupts TTS while the screen is off on mobile
-      if (document.hidden) {
-        await new Promise(function(resolve) {
-          function onVisible() {
-            if (!document.hidden) {
-              document.removeEventListener("visibilitychange", onVisible)
-              resolve()
-            }
-          }
-          document.addEventListener("visibilitychange", onVisible)
-        })
-      }
-
       try {
         if (top !== self) {
           // Embedded player (Android): navigating the parent tab destroys this iframe.
           // Delegate to the service worker which survives page navigation and will
           // re-inject the player + restart playback on the new chapter.
-          bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl]).catch(console.error)
+          // Do NOT gate on document.hidden — audio keeps Kiwi active, and the SW can
+          // navigate background tabs. Waiting for visibility would force the user to
+          // manually switch back to the novel tab each chapter.
+          bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl])
+            .catch(function(err) {
+              console.error("[AutoNext] bgPageInvoke failed:", err)
+              // Retry once after 2 s in case SW was waking up
+              return new Promise(function(r) { setTimeout(r, 2000) })
+                .then(function() { return bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl]) })
+                .catch(console.error)
+            })
           return null
         }
         await navigateTabAndInject(sourceTabId, nextUrl)

@@ -28,12 +28,7 @@ bgPageInvoke("pdfViewerCheckIn")
 
 
 async function loadViewer() {
-  const viewerUrl = new URL(config.pdfViewerUrl + "?embedded")
-  const frame = document.getElementById("viewer-frame")
-  frame.src = viewerUrl.href
-  var queue
-  await new Promise(f => queue = new MessageQueue(frame.contentWindow, viewerUrl.origin, {viewerReady: f}))
-  return queue
+  throw new Error("PDF viewer is not available in this version")
 }
 
 async function loadDocument(queue) {

@@ -76,32 +76,8 @@ function KindleSample() {
 
 
 function makeOcr() {
-  $("<link>")
-    .attr({rel: "stylesheet", type: "text/css", href: brapi.runtime.getURL("css/bootstrap.min.css")})
-    .appendTo("head")
-
-  const servicePromise = new Promise(fulfill => {
-    const domDispatcher = makeDispatcher("ocr-host", {
-      onServiceReady(args, sender) {
-        fulfill(sender)
-      }
-    })
-    addEventListener("message", event => {
-      const send = message => event.source.postMessage(message, {targetOrigin: event.origin})
-      const sender = {
-        sendRequest(method, args) {
-          const id = String(Math.random())
-          send({to: "ocr-service", type: "request", id, method, args})
-          return domDispatcher.waitForResponse(id)
-        }
-      }
-      domDispatcher.dispatch(event.data, sender, send)
-    })
-    const frame = document.createElement("IFRAME")
-    frame.src = "https://ttstool.com/ocr.html"
-    frame.style.display = "none"
-    document.body.appendChild(frame)
-  })
+  const servicePromise = Promise.reject(new Error("Kindle OCR is not available in this version"))
+  servicePromise.catch(() => {})
 
   const langPromise = immediate(async () => {
     const service = await servicePromise
