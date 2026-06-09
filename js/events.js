@@ -545,7 +545,32 @@ async function sendToPlayer(message) {
 // Auto-next chapter delegated from embedded player (Android/Kiwi).
 // The embedded player iframe is destroyed when its parent tab navigates,
 // so we handle navigation + player re-creation here in the service worker.
+//
+// Cooldown: when the screen is off on Android, Kiwi may suspend the tab,
+// causing TTS to fail immediately. This makes chapters "complete" in rapid
+// succession, each triggering another auto-next and hammering the website
+// (leading to rate-limiting/blocks). A per-tab cooldown prevents the
+// rapid-fire loop while still allowing normal chapter progression (chapters
+// always take at least a few minutes at any TTS speed).
+//
+// We do NOT delete the cooldown on navigation failure: if the tab is frozen
+// (screen off), swNavigateTabAndInject will time out and we must not
+// immediately re-trigger — let the cooldown expire naturally instead.
+//
+// startKeepAlive() is called before navigation so Chrome's alarm mechanism
+// keeps the SW alive even when the player iframe message channel closes
+// (Chrome MV3 can kill the SW mid-onMessage despite `return true`).
+const autoNextLastNav = new Map()
+const AUTO_NEXT_COOLDOWN_MS = 30000
+
 async function autoNextChapter(tabId, nextUrl) {
+  const now = Date.now()
+  if (now - (autoNextLastNav.get(tabId) || 0) < AUTO_NEXT_COOLDOWN_MS) {
+    console.log('[AutoNext] cooldown active for tab', tabId, '— skipping rapid re-trigger')
+    return
+  }
+  autoNextLastNav.set(tabId, now)
+  startKeepAlive()
   await swNavigateTabAndInject(tabId, nextUrl)
   await playTab(tabId)
 }

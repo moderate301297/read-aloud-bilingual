@@ -93,7 +93,6 @@ function TabSource() {
           bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl])
             .catch(function(err) {
               console.error("[AutoNext] bgPageInvoke failed:", err)
-              // Retry once after 2 s in case SW was waking up
               return new Promise(function(r) { setTimeout(r, 2000) })
                 .then(function() { return bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl]) })
                 .catch(console.error)
