@@ -80,7 +80,14 @@ function TabSource() {
       if (!autoNextChapter) return null
 
       const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(() => null)
-      if (!nextUrl) return null
+      if (!nextUrl) {
+        if (top !== self) {
+          bgPageInvoke("showAutoNextError", [sourceTabId,
+            "Không tìm thấy link chương tiếp theo. Vui lòng quay lại tab truyện để chuyển chương thủ công."
+          ]).catch(function() {})
+        }
+        return null
+      }
 
       try {
         if (top !== self) {
@@ -90,12 +97,30 @@ function TabSource() {
           // Do NOT gate on document.hidden — audio keeps Kiwi active, and the SW can
           // navigate background tabs. Waiting for visibility would force the user to
           // manually switch back to the novel tab each chapter.
+          //
+          // 5-second watchdog: if this iframe is still alive after 5 s the parent tab
+          // never navigated, meaning auto-next silently failed.  pagehide fires when the
+          // parent page navigates and destroys this iframe (success path).
+          var _pageHidden = false
+          window.addEventListener('pagehide', function() { _pageHidden = true }, {once: true})
+          setTimeout(function() {
+            if (!_pageHidden) {
+              bgPageInvoke("showAutoNextError", [sourceTabId,
+                "Không thể chuyển chương sau 5 giây. Vui lòng quay lại tab truyện và chuyển chương thủ công."
+              ]).catch(function() {})
+            }
+          }, 5000)
+
           bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl])
             .catch(function(err) {
               console.error("[AutoNext] bgPageInvoke failed:", err)
               return new Promise(function(r) { setTimeout(r, 2000) })
                 .then(function() { return bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl]) })
-                .catch(console.error)
+                .catch(function(retryErr) {
+                  bgPageInvoke("showAutoNextError", [sourceTabId,
+                    "Lỗi kết nối với tiến trình nền. Vui lòng chuyển chương thủ công."
+                  ]).catch(function() {})
+                })
             })
           return null
         }

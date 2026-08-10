@@ -191,6 +191,13 @@ function WebSpeechEngine() {
       if (event.error == "interrupted") {
         // External interruption (e.g. Android backgrounding) — treat as end.
         // Our own stop() clears onerror first, so this only fires for system interruptions.
+        //
+        // Exception: if the screen is off (document.hidden), do NOT advance yet.
+        // When screen turns off, Android kills TTS with "interrupted" on every chunk,
+        // causing chapters to race through silently. Instead, leave the visibilitychange
+        // handler in place — it will call fireEnd() when the screen comes back on,
+        // so the chapter only advances once the user returns.
+        if (document.hidden) return;
         fireEnd();
         return;
       }

@@ -296,14 +296,19 @@ function playTab() {
     })
   }
   const doc = activeDoc
-  return activeDoc.play()
+  // Fire play() asynchronously — don't block the message response.
+  // Doc.play() can wait up to 4 s for page content (tryGetTexts), which exceeds
+  // the 3 s sendToPlayer timeout in the service worker and causes auto-next to
+  // silently fail on the second chapter transition. Errors are still handled via
+  // handleError/playbackError, surfaced through getPlaybackState().
+  doc.play()
     .catch(function(err) {
       if (doc == activeDoc) {
         handleError(err);
         closeDoc();
       }
-      throw err;
     })
+  return true
 }
 
 function stop() {

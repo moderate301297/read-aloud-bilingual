@@ -34,11 +34,19 @@ function startKeepAlive() {
   if (brapi.alarms) {
     brapi.alarms.create('keepAlive', { periodInMinutes: 1/3 })
   }
+  // Prevent the display from turning off / the device from sleeping while
+  // reading. "display" keeps the screen on (which also implies system awake).
+  if (typeof chrome != "undefined" && chrome.power) {
+    try { chrome.power.requestKeepAwake("display") } catch (err) {}
+  }
 }
 
 function stopKeepAlive() {
   if (brapi.alarms) {
     brapi.alarms.clear('keepAlive')
+  }
+  if (typeof chrome != "undefined" && chrome.power) {
+    try { chrome.power.releaseKeepAwake() } catch (err) {}
   }
 }
 
@@ -62,6 +70,7 @@ var handlers = {
   managePiperVoices,
   manageSupertonicVoices,
   autoNextChapter: autoNextChapter,
+  showAutoNextError: showAutoNextError,
   playerCheckIn: function() {},
 }
 
@@ -247,8 +256,8 @@ async function playTab(tabId) {
   }
 
   const hasPlayer = await stop().then(res => res == true, err => false)
-  if (!hasPlayer) await injectPlayer(tab)
   startKeepAlive()
+  if (!hasPlayer) await injectPlayer(tab)
   await sendToPlayer({method: "playTab"})
 }
 
@@ -571,8 +580,50 @@ async function autoNextChapter(tabId, nextUrl) {
   }
   autoNextLastNav.set(tabId, now)
   startKeepAlive()
-  await swNavigateTabAndInject(tabId, nextUrl)
-  await playTab(tabId)
+  try {
+    await swNavigateTabAndInject(tabId, nextUrl)
+    await playTab(tabId)
+  } catch (err) {
+    console.error('[AutoNext] failed:', err)
+    autoNextLastNav.delete(tabId)
+    await showAutoNextError(tabId, buildAutoNextErrorMsg(err))
+  }
+}
+
+function buildAutoNextErrorMsg(err) {
+  const m = err && (err.message || String(err))
+  if (!m) return 'Không thể chuyển chương tự động. Vui lòng chuyển chương thủ công.'
+  if (/timed out/i.test(m)) return 'Tab truyện không tải được. Nhấp vào tab truyện để chuyển chương thủ công.'
+  if (/getRequireJs|listener indicated|Could not establish/i.test(m)) return 'Không đọc được nội dung trang mới. Thử tải lại trang truyện.'
+  return 'Lỗi chuyển chương: ' + m + '. Vui lòng chuyển thủ công.'
+}
+
+async function showAutoNextError(tabId, message) {
+  const toastFn = function(msg) {
+    var old = document.getElementById('ra-auto-next-toast')
+    if (old) old.remove()
+    var el = document.createElement('div')
+    el.id = 'ra-auto-next-toast'
+    el.style.cssText = [
+      'position:fixed', 'bottom:24px', 'left:50%', 'transform:translateX(-50%)',
+      'background:#b71c1c', 'color:#fff', 'padding:14px 20px', 'border-radius:10px',
+      'z-index:2147483647', 'font-size:14px', 'max-width:88vw', 'text-align:center',
+      'box-shadow:0 4px 16px rgba(0,0,0,.35)', 'line-height:1.5'
+    ].join(';')
+    el.textContent = msg
+    document.body.appendChild(el)
+    setTimeout(function() { if (el.parentNode) el.remove() }, 15000)
+  }
+  // Try the novel tab first; fall back to whatever tab is currently active.
+  const injected = await brapi.scripting.executeScript({
+    target: {tabId},
+    func: toastFn,
+    args: [message]
+  }).then(() => true).catch(() => false)
+  if (!injected) {
+    const [active] = await brapi.tabs.query({active: true, currentWindow: true}).catch(() => [])
+    if (active) brapi.scripting.executeScript({target: {tabId: active.id}, func: toastFn, args: [message]}).catch(() => {})
+  }
 }
 
 async function swNavigateTabAndInject(tabId, url) {

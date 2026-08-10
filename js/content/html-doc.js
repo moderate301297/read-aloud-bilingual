@@ -22,6 +22,54 @@ var readAloudDoc = new function() {
     else return null;
   }
 
+  // Generic next-chapter detection — applies to every unregistered site
+  // (and to sites whose domain changed, e.g. truyendich) so auto-next keeps
+  // working without a per-host handler. Site handlers loaded after this file
+  // may still override readAloudDoc.getNextPageUrl for better precision.
+  this.getNextPageUrl = function() {
+    // 1. Standard rel="next" link
+    var next = document.querySelector('a[rel="next"]')
+    if (next && next.href) return next.href
+
+    // 2. Common next-chapter button/link selectors (VN + EN novel sites)
+    var selectors = [
+      'a.next', 'a.next-chap', 'a.next_chapter', 'a.btn-next',
+      'a.next-chapter', 'a.chapter-next',
+      '.next-chapter a', '.next-chap a', '.nav-next a', '.chapter-nav a.next',
+      'a[title*="Tiếp"]', 'a[title*="tiếp"]', 'a[title*="Sau"]',
+      'a[title*="Next"]', 'a[aria-label*="next" i]', 'a[rel="next"]',
+    ]
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i])
+      if (el && el.href && !/#$/.test(el.getAttribute('href') || '')) return el.href
+    }
+
+    // 3. Link whose visible text looks like a next-chapter label
+    var labelRe = /(chương|chapter)?\s*(tiếp|sau|next)\b|»|→/i
+    var anchors = document.querySelectorAll('a[href]')
+    for (var j = 0; j < anchors.length; j++) {
+      var a = anchors[j]
+      var txt = (a.textContent || '').trim()
+      if (txt && txt.length <= 30 && labelRe.test(txt) && a.href) return a.href
+    }
+
+    // 4. URL increment — chuong-1, chuong1, chapter-1, chapter1, c-1, c1
+    var url = location.href
+    var m = url.match(/(chuong|chapter|c)([-_]?)(\d+)/i)
+    if (m) return url.replace(m[0], m[1] + m[2] + (parseInt(m[3]) + 1))
+
+    // 5. Last path segment is a plain number: /1, /123
+    var pathname = location.pathname.replace(/\/$/, '')
+    var parts = pathname.split('/')
+    var lastSeg = parts[parts.length - 1]
+    if (/^\d+$/.test(lastSeg)) {
+      parts[parts.length - 1] = String(parseInt(lastSeg) + 1)
+      return location.protocol + '//' + location.host + parts.join('/') + location.search + location.hash
+    }
+
+    return null
+  }
+
   this.getSelectedText = async function() {
     const math = await getMath()
     try {
