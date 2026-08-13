@@ -135,6 +135,47 @@ const idleSubject = new rxjs.BehaviorSubject(true)
   })
 })()
 
+// Screen Wake Lock — keep the device screen on while playback is active.
+// chrome.power.requestKeepAwake("display") (used in the service worker) is a
+// no-op on Android/Kiwi, so the screen would sleep mid-chapter. That kills TTS
+// audio and, worse, lets Kiwi freeze/discard the novel tab — which defers
+// tabs.update and breaks auto-next (user has to tap the tab to continue).
+// The Wake Lock API works from the embedded player iframe as long as it is
+// visible (its host tab is the foreground tab on Android). Wake locks are
+// auto-released whenever the document becomes hidden, so we re-acquire on
+// visibilitychange whenever playback is still active.
+;(function setupScreenWakeLock() {
+  if (!('wakeLock' in navigator)) return
+  let sentinel = null
+  let active = false   // playback active (mirrors !idle)
+
+  async function acquire() {
+    if (!active || sentinel || document.visibilityState !== 'visible') return
+    try {
+      sentinel = await navigator.wakeLock.request('screen')
+      sentinel.addEventListener('release', function() { sentinel = null })
+    } catch (e) {
+      console.warn('wakeLock request failed', e)
+      sentinel = null
+    }
+  }
+  async function release() {
+    const s = sentinel
+    sentinel = null
+    if (s) try { await s.release() } catch (_) {}
+  }
+
+  idleSubject.subscribe(function(isIdle) {
+    active = !isIdle
+    if (active) acquire()
+    else release()
+  })
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') acquire()
+  })
+})()
+
 if (queryString.has("autoclose")) {
   rxjs.combineLatest(
     idleSubject,

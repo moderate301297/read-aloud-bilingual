@@ -516,6 +516,10 @@ function createPlayerFrame() {
   const brapi = (typeof chrome != 'undefined') ? chrome : (typeof browser != 'undefined' ? browser : {})
   const frame = document.createElement("iframe")
   frame.src = brapi.runtime.getURL("player.html")
+  // Grant the cross-origin player iframe the screen-wake-lock permission so it
+  // can call navigator.wakeLock.request('screen') to keep the Android screen on
+  // during playback (default Permissions-Policy allowlist blocks cross-origin).
+  frame.allow = "screen-wake-lock"
   frame.style.position = "absolute"
   frame.style.height = "0"
   frame.style.borderWidth = "0"
