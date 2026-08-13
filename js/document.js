@@ -98,19 +98,13 @@ function TabSource() {
           // navigate background tabs. Waiting for visibility would force the user to
           // manually switch back to the novel tab each chapter.
           //
-          // 5-second watchdog: if this iframe is still alive after 5 s the parent tab
-          // never navigated, meaning auto-next silently failed.  pagehide fires when the
-          // parent page navigates and destroys this iframe (success path).
-          var _pageHidden = false
-          window.addEventListener('pagehide', function() { _pageHidden = true }, {once: true})
-          setTimeout(function() {
-            if (!_pageHidden) {
-              bgPageInvoke("showAutoNextError", [sourceTabId,
-                "Không thể chuyển chương sau 5 giây. Vui lòng quay lại tab truyện và chuyển chương thủ công."
-              ]).catch(function() {})
-            }
-          }, 5000)
-
+          // No iframe-side watchdog here: navigation can legitimately take up to 90 s
+          // when Kiwi defers a background-tab load, so "iframe still alive after N s"
+          // is not a reliable failure signal (it produced false alarms that clobbered
+          // the real reason). The service worker is the single source of truth — it
+          // toasts a specific cause on every failure path (cooldown, nav timeout,
+          // content-injection failure, playback-blocked). We only report here if the
+          // SW is unreachable (message channel never established).
           bgPageInvoke("autoNextChapter", [sourceTabId, nextUrl])
             .catch(function(err) {
               console.error("[AutoNext] bgPageInvoke failed:", err)

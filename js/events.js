@@ -578,8 +578,18 @@ const AUTO_NEXT_COOLDOWN_MS = 30000
 
 async function autoNextChapter(tabId, nextUrl) {
   const now = Date.now()
-  if (now - (autoNextLastNav.get(tabId) || 0) < AUTO_NEXT_COOLDOWN_MS) {
+  const sinceLast = now - (autoNextLastNav.get(tabId) || 0)
+  if (sinceLast < AUTO_NEXT_COOLDOWN_MS) {
+    const waitSec = Math.ceil((AUTO_NEXT_COOLDOWN_MS - sinceLast) / 1000)
     console.log('[AutoNext] cooldown active for tab', tabId, '— skipping rapid re-trigger')
+    // Don't fail silently: the user needs to know *why* it didn't advance.
+    // A chapter finishing within the cooldown almost always means TTS died
+    // instantly (screen off / tab suspended) rather than a real read-through.
+    await showAutoNextError(tabId,
+      'Chương vừa kết thúc quá nhanh (chống lặp ' + (AUTO_NEXT_COOLDOWN_MS / 1000) + 's). ' +
+      'Thường do màn hình tắt khiến giọng đọc lỗi ngay. Tự thử lại sau ' + waitSec + 's, ' +
+      'hoặc mở tab truyện và bấm phát lại.'
+    )
     return
   }
   autoNextLastNav.set(tabId, now)
@@ -596,23 +606,45 @@ async function autoNextChapter(tabId, nextUrl) {
   // navigation and audio start succeed, then restore the user's tab once
   // playback is actually running. An audible tab keeps playing in the
   // background, so it won't be discarded and won't spin again.
+  //
+  // Use lastFocusedWindow (NOT currentWindow): a service worker has no "current
+  // window", so currentWindow returns nothing/wrong on Kiwi. lastFocusedWindow
+  // is what the user is actually looking at.
   let restoreTabId = null
   try {
-    const [active] = await brapi.tabs.query({active: true, currentWindow: true})
+    const [active] = await brapi.tabs.query({active: true, lastFocusedWindow: true})
     if (active && active.id !== tabId) restoreTabId = active.id
   } catch (_) {}
 
+  // Track which step failed so the toast can name the actual cause.
+  let phase = 'navigate'
   try {
-    if (restoreTabId != null) await brapi.tabs.update(tabId, {active: true}).catch(() => {})
+    await foregroundTab(tabId)
     await swNavigateTabAndInject(tabId, nextUrl)
+    phase = 'play'
     await playTab(tabId)
+    phase = 'confirm'
     if (restoreTabId != null && await waitUntilPlaying(8000)) {
       await brapi.tabs.update(restoreTabId, {active: true}).catch(() => {})
     }
   } catch (err) {
-    console.error('[AutoNext] failed:', err)
+    console.error('[AutoNext] failed at phase', phase, err)
     autoNextLastNav.delete(tabId)
-    await showAutoNextError(tabId, buildAutoNextErrorMsg(err))
+    await showAutoNextError(tabId, buildAutoNextErrorMsg(err, phase))
+  }
+}
+
+// Bring the novel tab fully to the foreground: mark it active AND focus its
+// window. On Kiwi Android the player/popup can live in a different tab strip,
+// so activating the tab alone leaves its window unfocused — Android still
+// treats it as background (discard + autoplay block). Focusing the window is
+// what actually makes navigation and audio start succeed.
+async function foregroundTab(tabId) {
+  let tab = null
+  try { tab = await brapi.tabs.get(tabId) } catch (_) {}
+  await brapi.tabs.update(tabId, {active: true}).catch(() => {})
+  if (tab && tab.windowId != null) {
+    await brapi.windows.update(tab.windowId, {focused: true}).catch(() => {})
   }
 }
 
@@ -630,12 +662,24 @@ async function waitUntilPlaying(timeoutMs) {
   return false
 }
 
-function buildAutoNextErrorMsg(err) {
-  const m = err && (err.message || String(err))
-  if (!m) return 'Không thể chuyển chương tự động. Vui lòng chuyển chương thủ công.'
-  if (/timed out/i.test(m)) return 'Tab truyện không tải được. Nhấp vào tab truyện để chuyển chương thủ công.'
-  if (/getRequireJs|listener indicated|Could not establish/i.test(m)) return 'Không đọc được nội dung trang mới. Thử tải lại trang truyện.'
-  return 'Lỗi chuyển chương: ' + m + '. Vui lòng chuyển thủ công.'
+function buildAutoNextErrorMsg(err, phase) {
+  const m = (err && (err.message || String(err))) || ''
+  if (phase === 'navigate') {
+    if (/timed out/i.test(m)) {
+      return 'Không mở được chương mới: tab truyện bị Kiwi tạm dừng nên trang không tự tải. Nhấp vào tab truyện để tiếp tục.'
+    }
+    if (/getRequireJs|listener indicated|Could not establish|sendMessage/i.test(m)) {
+      return 'Đã mở chương mới nhưng chưa nạp được nội dung (content script chưa sẵn sàng). Thử tải lại trang truyện.'
+    }
+    return 'Lỗi khi mở chương tiếp theo: ' + (m || 'không xác định') + '. Vui lòng chuyển thủ công.'
+  }
+  if (phase === 'play') {
+    return 'Đã mở chương mới nhưng không tự phát được (trình duyệt chặn tự phát khi tab ở nền). Nhấp vào tab truyện để bắt đầu đọc.'
+  }
+  if (phase === 'confirm') {
+    return 'Chương mới đã mở nhưng chưa xác nhận đang phát. Nếu không nghe thấy, nhấp vào tab truyện.'
+  }
+  return 'Không thể chuyển chương tự động: ' + (m || 'lỗi không xác định') + '. Vui lòng chuyển thủ công.'
 }
 
 async function showAutoNextError(tabId, message) {
@@ -654,68 +698,44 @@ async function showAutoNextError(tabId, message) {
     document.body.appendChild(el)
     setTimeout(function() { if (el.parentNode) el.remove() }, 15000)
   }
-  // Try the novel tab first; fall back to whatever tab is currently active.
-  const injected = await brapi.scripting.executeScript({
-    target: {tabId},
-    func: toastFn,
-    args: [message]
-  }).then(() => true).catch(() => false)
-  if (!injected) {
-    const [active] = await brapi.tabs.query({active: true, currentWindow: true}).catch(() => [])
-    if (active) brapi.scripting.executeScript({target: {tabId: active.id}, func: toastFn, args: [message]}).catch(() => {})
+  // Show on the novel tab AND on whatever tab the user is currently looking at.
+  // On Kiwi Android the player/popup is its own tab, so the novel tab is often
+  // backgrounded — injecting only there would toast into a tab the user can't
+  // see. Deliver to both (deduped) so the reason is always visible.
+  const targets = new Set([tabId])
+  try {
+    const [active] = await brapi.tabs.query({active: true, lastFocusedWindow: true})
+    if (active) targets.add(active.id)
+  } catch (_) {}
+  for (const t of targets) {
+    brapi.scripting.executeScript({target: {tabId: t}, func: toastFn, args: [message]}).catch(() => {})
   }
 }
 
 async function swNavigateTabAndInject(tabId, url) {
   await new Promise((resolve, reject) => {
-    let warned = false
-
     // On Android/Kiwi, Kiwi can defer background-tab navigation until the tab
     // is activated by the user (same as Chrome Memory Saver on desktop).
     // Give a generous 90 s so the user just needs to tap the tab once.
+    // No early "tap the tab" toast here: navigation legitimately runs up to
+    // 90 s, so a 5 s nudge produced false alarms. autoNextChapter foregrounds
+    // the tab first, and reports the real cause once this settles or times out.
     const timeout = setTimeout(() => {
       brapi.tabs.onUpdated.removeListener(onUpdated)
       reject(new Error("Tab navigation timed out"))
     }, 90000)
-
-    // After 5 s without a real 'complete', check if the tab is discarded and
-    // inject a toast into the active tab so the user knows to tap the novel tab.
-    const warnTimer = setTimeout(async () => {
-      try {
-        const tab = await brapi.tabs.get(tabId)
-        if (tab.discarded && !warned) {
-          warned = true
-          const [activeTab] = await brapi.tabs.query({active: true, currentWindow: true})
-          if (activeTab) {
-            brapi.scripting.executeScript({
-              target: {tabId: activeTab.id},
-              func: function(msg) {
-                var el = document.createElement('div')
-                el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:12px 22px;border-radius:8px;z-index:2147483647;font-size:14px;pointer-events:none'
-                el.textContent = msg
-                document.body.appendChild(el)
-                setTimeout(function() { el.remove() }, 8000)
-              },
-              args: ['Nhấp vào tab truyện để tiếp tục chương mới']
-            }).catch(function() {})
-          }
-        }
-      } catch (_) {}
-    }, 5000)
 
     function onUpdated(id, info, tab) {
       if (id !== tabId || info.status !== 'complete') return
       if (tab.discarded) return
       brapi.tabs.onUpdated.removeListener(onUpdated)
       clearTimeout(timeout)
-      clearTimeout(warnTimer)
       setTimeout(resolve, 800)
     }
     brapi.tabs.onUpdated.addListener(onUpdated)
     brapi.tabs.update(tabId, {url}).catch(err => {
       brapi.tabs.onUpdated.removeListener(onUpdated)
       clearTimeout(timeout)
-      clearTimeout(warnTimer)
       reject(err)
     })
   })
