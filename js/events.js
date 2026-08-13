@@ -584,14 +584,50 @@ async function autoNextChapter(tabId, nextUrl) {
   }
   autoNextLastNav.set(tabId, now)
   startKeepAlive()
+
+  // The user is often viewing a different tab when a chapter ends — on Kiwi
+  // Android the popped-out highlight window (popup.html) is its own tab, which
+  // leaves the novel tab in the background. Kiwi suspends background tabs, so
+  // tabs.update() is deferred (navigation never runs) AND fresh audio can't be
+  // started in a background tab (Android autoplay policy) — the player spins on
+  // LOADING forever until the user manually re-opens the novel tab.
+  //
+  // Fix: foreground the novel tab for the duration of the transition so both
+  // navigation and audio start succeed, then restore the user's tab once
+  // playback is actually running. An audible tab keeps playing in the
+  // background, so it won't be discarded and won't spin again.
+  let restoreTabId = null
   try {
+    const [active] = await brapi.tabs.query({active: true, currentWindow: true})
+    if (active && active.id !== tabId) restoreTabId = active.id
+  } catch (_) {}
+
+  try {
+    if (restoreTabId != null) await brapi.tabs.update(tabId, {active: true}).catch(() => {})
     await swNavigateTabAndInject(tabId, nextUrl)
     await playTab(tabId)
+    if (restoreTabId != null && await waitUntilPlaying(8000)) {
+      await brapi.tabs.update(restoreTabId, {active: true}).catch(() => {})
+    }
   } catch (err) {
     console.error('[AutoNext] failed:', err)
     autoNextLastNav.delete(tabId)
     await showAutoNextError(tabId, buildAutoNextErrorMsg(err))
   }
+}
+
+// Poll the player until playback actually starts (audio unlocked while the
+// novel tab is foregrounded). Returns true if PLAYING was observed before the
+// timeout, false otherwise — in which case we keep the novel tab foregrounded
+// so the user can see/act instead of backgrounding a stuck tab.
+async function waitUntilPlaying(timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const st = await sendToPlayer({method: "getPlaybackState"}).catch(() => null)
+    if (st && st.state === "PLAYING") return true
+    await new Promise(r => setTimeout(r, 400))
+  }
+  return false
 }
 
 function buildAutoNextErrorMsg(err) {
