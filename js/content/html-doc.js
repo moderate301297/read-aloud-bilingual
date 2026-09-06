@@ -8,6 +8,41 @@ var readAloudDoc = new function() {
     return 0;
   }
 
+  // Auto-next lands on a fresh URL, but SPA sites (Vue/React) render the chapter
+  // body asynchronously AFTER the page 'complete' event. If getTexts runs before
+  // that, it grabs an empty/partial container, the (tiny) text finishes reading
+  // instantly, and auto-next fires again — chaining through chapters at speed.
+  //
+  // Poll the container until its visible text is substantial AND stable
+  // (unchanged across consecutive polls = rendering has settled), capped by
+  // maxWaitMs. Resolves with the element once ready, or null if the content
+  // never materializes (caller then reports "no text" instead of chaining).
+  this.waitForStableText = function(selectors, opts) {
+    opts = opts || {};
+    var sels = [].concat(selectors);
+    var minLen = opts.minLen || 200;
+    var maxWaitMs = opts.maxWaitMs || 45000;
+    var stableNeeded = opts.stableNeeded || 2;
+    var pollMs = opts.pollMs || 500;
+    return new Promise(function(resolve) {
+      var deadline = Date.now() + maxWaitMs;
+      var lastLen = -1, stable = 0;
+      (function poll() {
+        var el = null;
+        for (var i = 0; i < sels.length && !el; i++) el = document.querySelector(sels[i]);
+        var len = (el && el.innerText) ? el.innerText.trim().length : 0;
+        if (len >= minLen && len === lastLen) {
+          if (++stable >= stableNeeded) return resolve(el);
+        } else {
+          stable = 0;
+        }
+        lastLen = len;
+        if (Date.now() >= deadline) return resolve(len >= minLen ? el : null);
+        setTimeout(poll, pollMs);
+      })();
+    });
+  }
+
   this.getTexts = async function(index) {
     if (index == 0) {
       const math = await getMath()
@@ -91,6 +126,30 @@ var readAloudDoc = new function() {
     console.log("Found", textBlocks.length, "blocks", countChars, "chars in", new Date()-start, "ms");
 
     if (countChars < 1000) {
+      // Word-by-word obfuscation guard: some sites (VN novel/translation sites)
+      // wrap every word in its own inline <i>/<span>. The block walker then finds
+      // almost no text and shatters playback into one-word fragments. If a
+      // recognizable content container holds far more text than we captured,
+      // read it directly (innerText re-joins the words) and split on blank lines.
+      var container = findContentContainer(countChars);
+      if (container) {
+        var paras = [];
+        var heading = document.querySelector(".chapter-title, h1, h2");
+        if (heading) {
+          var ht = (heading.innerText || "").trim();
+          if (ht) paras.push(ht);
+        }
+        container.innerText.split(/\n{2,}/).forEach(function(block) {
+          var t = block.replace(/\s+/g, " ").trim();
+          if (t) paras.push(t);
+        });
+        var joined = paras.filter(isNotEmpty);
+        if (joined.length) {
+          console.log("Using content-container fallback:", joined.length, "paragraphs");
+          return joined;
+        }
+      }
+
       textBlocks = findTextBlocks(3);
       var texts = textBlocks.map(getInnerText);
       console.log("Using lower threshold, found", textBlocks.length, "blocks", texts.join("").length, "chars");
@@ -121,6 +180,29 @@ var readAloudDoc = new function() {
 
     //extract texts
     return toRead.flatMap(getTexts).filter(isNotEmpty);
+  }
+
+  // Look for a chapter/article container whose visible text is much larger than
+  // what the block walker captured (capturedChars). That gap is the signature of
+  // per-word inline wrapping; only then do we override with direct innerText.
+  function findContentContainer(capturedChars) {
+    var selectors = [
+      ".chapter-body", ".chapter-content", "#chapter-content",
+      ".content-chapter", ".reading-content", ".box-chap",
+      "#chapter-c", ".chapter-c", "article", "[class*='chapter']", "[id*='chapter']",
+    ];
+    var minLen = Math.max(capturedChars * 3, 400);
+    var best = null, bestLen = 0;
+    for (var i = 0; i < selectors.length; i++) {
+      var els = document.querySelectorAll(selectors[i]);
+      for (var j = 0; j < els.length; j++) {
+        var el = els[j];
+        if (!$(el).is(":visible")) continue;
+        var len = (el.innerText || "").trim().length;
+        if (len > bestLen && len >= minLen) { best = el; bestLen = len; }
+      }
+    }
+    return best;
   }
 
   function findTextBlocks(threshold) {

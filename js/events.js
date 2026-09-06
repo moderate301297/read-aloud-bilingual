@@ -574,7 +574,7 @@ async function sendToPlayer(message) {
 // keeps the SW alive even when the player iframe message channel closes
 // (Chrome MV3 can kill the SW mid-onMessage despite `return true`).
 const autoNextLastNav = new Map()
-const AUTO_NEXT_COOLDOWN_MS = 30000
+const AUTO_NEXT_COOLDOWN_MS = 45000
 
 async function autoNextChapter(tabId, nextUrl) {
   const now = Date.now()
@@ -602,20 +602,15 @@ async function autoNextChapter(tabId, nextUrl) {
   // started in a background tab (Android autoplay policy) — the player spins on
   // LOADING forever until the user manually re-opens the novel tab.
   //
-  // Fix: foreground the novel tab for the duration of the transition so both
-  // navigation and audio start succeed, then restore the user's tab once
-  // playback is actually running. An audible tab keeps playing in the
-  // background, so it won't be discarded and won't spin again.
+  // Fix: foreground the novel tab and KEEP it foregrounded across chapters.
+  // We deliberately do NOT restore the user's previous tab after playback
+  // starts: switching back would push the novel tab to the background, and on
+  // the *next* chapter end Kiwi defers that tab's navigation until it's woken
+  // again — up to the 90 s nav timeout in swNavigateTabAndInject. That was the
+  // ">1 minute to advance" symptom: chapter 1→2 was instant (novel tab active),
+  // but 2→3 stalled because 1→2's restore had backgrounded the tab. Staying
+  // foregrounded keeps every subsequent auto-next instant.
   //
-  // Use lastFocusedWindow (NOT currentWindow): a service worker has no "current
-  // window", so currentWindow returns nothing/wrong on Kiwi. lastFocusedWindow
-  // is what the user is actually looking at.
-  let restoreTabId = null
-  try {
-    const [active] = await brapi.tabs.query({active: true, lastFocusedWindow: true})
-    if (active && active.id !== tabId) restoreTabId = active.id
-  } catch (_) {}
-
   // Track which step failed so the toast can name the actual cause.
   let phase = 'navigate'
   try {
@@ -624,9 +619,9 @@ async function autoNextChapter(tabId, nextUrl) {
     phase = 'play'
     await playTab(tabId)
     phase = 'confirm'
-    if (restoreTabId != null && await waitUntilPlaying(8000)) {
-      await brapi.tabs.update(restoreTabId, {active: true}).catch(() => {})
-    }
+    // Confirm playback actually started (unlocks the confirm-phase error toast
+    // if it didn't). No tab switch here — the novel tab stays in the foreground.
+    await waitUntilPlaying(8000)
   } catch (err) {
     console.error('[AutoNext] failed at phase', phase, err)
     autoNextLastNav.delete(tabId)

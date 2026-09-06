@@ -46,6 +46,7 @@
     else if (location.hostname == "webnovel.vn") return ["js/content/webnovel-vn.js"];
     else if (location.hostname.endsWith("metruyenchuvn.com")) return ["js/content/metruyenchuvn.js"];
     else if (location.hostname.endsWith("truyendich.ai")) return ["js/content/html-doc.js", "js/content/truyendich.js"];
+    else if (location.hostname.endsWith("dichtienghoa.net")) return ["js/content/html-doc.js", "js/content/dichtienghoa.js"];
     else if (location.hostname == "chat.openai.com") return ["js/content/chatgpt.js"];
     else if (location.pathname.match(/readaloud\.html$/)
       || location.pathname.match(/\.pdf$/)
