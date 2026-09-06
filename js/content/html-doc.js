@@ -23,7 +23,19 @@ var readAloudDoc = new function() {
     var minLen = opts.minLen || 200;
     var maxWaitMs = opts.maxWaitMs || 45000;
     var stableNeeded = opts.stableNeeded || 2;
-    var pollMs = opts.pollMs || 500;
+    var pollMs = opts.pollMs || 300;
+    // Requiring the length to be EXACTLY equal between polls is too strict: sites
+    // like dichtienghoa.net wrap each word in its own <i> (Hán–Việt lookup) and
+    // attach per-word annotations progressively, plus view counters / ad slots
+    // jitter the innerText by a few chars every poll. Exact equality then never
+    // holds, the stability streak resets each tick, and we burn the full
+    // maxWaitMs even though the chapter has been fully readable for seconds.
+    // Treat the text as stable once its length stops changing by more than a
+    // tolerance — a small absolute floor, or 1% of the current length for long
+    // chapters (missing a few trailing annotation chars is harmless; the VN text
+    // is all there). A container going empty -> full is a large relative jump, so
+    // partial content is still rejected.
+    var absTol = opts.tolerance != null ? opts.tolerance : 12;
     return new Promise(function(resolve) {
       var deadline = Date.now() + maxWaitMs;
       var lastLen = -1, stable = 0;
@@ -31,7 +43,8 @@ var readAloudDoc = new function() {
         var el = null;
         for (var i = 0; i < sels.length && !el; i++) el = document.querySelector(sels[i]);
         var len = (el && el.innerText) ? el.innerText.trim().length : 0;
-        if (len >= minLen && len === lastLen) {
+        var tol = Math.max(absTol, Math.floor(len * 0.01));
+        if (len >= minLen && lastLen >= 0 && Math.abs(len - lastLen) <= tol) {
           if (++stable >= stableNeeded) return resolve(el);
         } else {
           stable = 0;
