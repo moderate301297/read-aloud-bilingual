@@ -52,6 +52,7 @@ Vietnamese-specific handlers:
 - `webnovel-vn.js` — handles both free chapters (`<br><br>` DOM walking) and paid chapters (CSS flex-order scrambling via `getBoundingClientRect` sort)
 - `tiemtruyenchu.js` — tiemtruyenchu.com
 - `truyendich.js` — truyendich.ai (used alongside `html-doc.js`)
+- `lacatruyen.js` — lacatruyen.homes (Next.js reader with anti-scraping: AES-encrypted text with server-rotating keys, invisible decoy `<p data-decoy>` paragraphs, and real paragraphs only un-scrambled when scrolled near the viewport. The handler drives the site's own reveal — scrolls each real paragraph into view, waits for its text to stabilise, then captures it. `getTexts` is async)
 - `html-doc.js` — generic fallback for standard HTML pages
 
 ### Bilingual Mode

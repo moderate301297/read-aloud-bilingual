@@ -44,6 +44,7 @@
     else if (location.hostname == "archiveofourown.org") return ["js/content/archiveofourown.js"];
     else if (location.hostname == "tiemtruyenchu.com") return ["js/content/tiemtruyenchu.js"];
     else if (location.hostname == "webnovel.vn") return ["js/content/webnovel-vn.js"];
+    else if (location.hostname.endsWith("lacatruyen.homes")) return ["js/content/lacatruyen.js"];
     else if (location.hostname.endsWith("metruyenchuvn.com")) return ["js/content/metruyenchuvn.js"];
     else if (location.hostname.endsWith("truyendich.ai")) return ["js/content/html-doc.js", "js/content/truyendich.js"];
     else if (location.hostname.endsWith("dichtienghoa.net")) return ["js/content/html-doc.js", "js/content/dichtienghoa.js"];
