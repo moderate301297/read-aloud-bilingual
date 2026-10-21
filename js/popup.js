@@ -86,6 +86,8 @@ async function popout(tabId) {
 async function init() {
   await domReady()
 
+  setI18nText();
+
   $("#btnPlay").click(onPlay);
   $("#btnPause").click(onPause);
   $("#btnStop").click(onStop);

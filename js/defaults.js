@@ -564,6 +564,13 @@ function setI18nText() {
     if ($(this).is("input")) $(this).val(text);
     else $(this).text(text);
   })
+  //Chrome does not auto-substitute __MSG_key__ placeholders inside HTML attributes, so do it here
+  $("[title^='__MSG_']").each(function() {
+    var title = $(this).attr("title").replace(/^__MSG_(.+)__$/, function(match, key) {
+      return brapi.i18n.getMessage(key) || match;
+    });
+    $(this).attr("title", title);
+  })
 }
 
 function escapeHtml(text) {
