@@ -641,7 +641,7 @@ function Doc(source, onEnd) {
     var lang = (!info.detectedLang || info.lang && info.lang.startsWith(info.detectedLang)) ? info.lang : info.detectedLang;
     console.log("Declared", info.lang, "- Detected", info.detectedLang, "- Chosen", lang, "- ReadMode", readMode)
     var options = {
-      rate: isEnglishMode ? (settings.rateEN || defaults.rateEN) : 2.5,
+      rate: isEnglishMode ? (settings.rateEN || defaults.rateEN) : (settings.rate || defaults.rate),
       pitch: settings.pitch || defaults.pitch,
       volume: settings.volume || defaults.volume,
       lang: isEnglishMode ? "en-US" : (config.langMap[lang] || lang || 'en-US'),
