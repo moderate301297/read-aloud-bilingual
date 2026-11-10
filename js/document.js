@@ -64,22 +64,51 @@ function TabSource() {
   this.isWaiting = function() {
     return waiting;
   }
-  this.getCurrentIndex = function() {
+  this.getCurrentIndex = async function() {
     waiting = true;
-    return sendToSource({method: "getCurrentIndex"})
-      .finally(function() {waiting = false})
+    try {
+      try {
+        return await sendToSource({method: "getCurrentIndex"})
+      } catch (err) {
+        // Same discarded-tab recovery as getTexts: the novel tab can sit idle after the
+        // player loads but before the user hits play, long enough for Memory Saver to
+        // kill its content script before this first call ever goes out.
+        if (!sourceTabId || !/^(A listener indicated|Could not establish)/.test(err.message)) throw err
+        if (!await reviveSourceTab()) throw err
+        return await sendToSource({method: "getCurrentIndex"})
+      }
+    } finally {
+      waiting = false
+    }
   }
   this.getTexts = async function(index, quietly) {
     waiting = true;
     try {
-      const texts = await sendToSource({method: "getTexts", args: [index, quietly]})
+      let texts
+      try {
+        texts = await sendToSource({method: "getTexts", args: [index, quietly]})
+      } catch (err) {
+        // On a long chapter, the novel tab can sit backgrounded for hours while
+        // the player works through already-fetched paragraphs. Chrome's Memory
+        // Saver may discard that idle tab, killing its content script — the next
+        // sendToSource call then fails with a connection error. Without this,
+        // that error gets swallowed upstream (readCurrent's .catch(()=>null))
+        // and playback just stops, never attempting auto-next. Revive the tab
+        // once and retry before giving up.
+        if (index === 0 || !sourceTabId || !/^(A listener indicated|Could not establish)/.test(err.message)) throw err
+        if (!await reviveSourceTab()) throw err
+        texts = await sendToSource({method: "getTexts", args: [index, quietly]})
+      }
       if (texts !== null || index === 0 || !sourceTabId) return texts
 
       // End of chapter — check for auto-next
       const {autoNextChapter} = await brapi.storage.local.get(["autoNextChapter"])
       if (!autoNextChapter) return null
 
-      const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(() => null)
+      const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(async err => {
+        if (!/^(A listener indicated|Could not establish)/.test(err.message) || !await reviveSourceTab()) return null
+        return sendToSource({method: "getNextPageUrl"}).catch(() => null)
+      })
       if (!nextUrl) {
         if (top !== self) {
           bgPageInvoke("showAutoNextError", [sourceTabId,
@@ -188,7 +217,14 @@ function TabSource() {
         reject(err)
       })
     })
-    // Re-inject base content scripts
+    // Re-inject base content scripts + site-specific handler
+    await reinjectContentScripts(tabId)
+  }
+
+  // Shared by navigateTabAndInject (new chapter URL) and reviveSourceTab (same URL,
+  // reloaded after a discard): load the base script chain, then ask it which
+  // site-specific handler to load and inject that too.
+  async function reinjectContentScripts(tabId) {
     const target = {tabId}
     await brapi.scripting.executeScript({target, files: [
       "js/rxjs.umd.min.js",
@@ -197,7 +233,7 @@ function TabSource() {
       "js/messaging.js",
       "js/content.js",
     ]})
-    // Inject site-specific handler — retry in case content script needs time to init
+    // Retry in case the content script needs time to init
     let files = null
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
@@ -210,6 +246,40 @@ function TabSource() {
     }
     if (files && files.length) {
       await brapi.scripting.executeScript({target, files})
+    }
+  }
+
+  // Reload + re-inject the source (novel) tab after Chrome's Memory Saver
+  // discarded it for sitting backgrounded too long. Unlike navigateTabAndInject
+  // this stays on the same chapter URL — we're recovering from a dead content
+  // script, not moving to a new page.
+  async function reviveSourceTab() {
+    if (!sourceTabId) return false
+    try {
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          brapi.tabs.onUpdated.removeListener(onUpdated)
+          reject(new Error("Tab revival timed out after 20s"))
+        }, 20000)
+        function onUpdated(id, info, tab) {
+          if (id !== sourceTabId || info.status !== 'complete') return
+          if (tab.discarded) return
+          brapi.tabs.onUpdated.removeListener(onUpdated)
+          clearTimeout(timeout)
+          setTimeout(resolve, 400)
+        }
+        brapi.tabs.onUpdated.addListener(onUpdated)
+        brapi.tabs.reload(sourceTabId).catch(err => {
+          brapi.tabs.onUpdated.removeListener(onUpdated)
+          clearTimeout(timeout)
+          reject(err)
+        })
+      })
+      await reinjectContentScripts(sourceTabId)
+      return true
+    } catch (err) {
+      console.error("[TabSource] Failed to revive discarded source tab:", err)
+      return false
     }
   }
 
