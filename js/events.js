@@ -663,7 +663,7 @@ function buildAutoNextErrorMsg(err, phase) {
     if (/timed out/i.test(m)) {
       return 'Không mở được chương mới: tab truyện bị Kiwi tạm dừng nên trang không tự tải. Nhấp vào tab truyện để tiếp tục.'
     }
-    if (/getRequireJs|listener indicated|Could not establish|sendMessage/i.test(m)) {
+    if (/getRequireJs|listener indicated|Could not establish|message port closed|sendMessage/i.test(m)) {
       return 'Đã mở chương mới nhưng chưa nạp được nội dung (content script chưa sẵn sàng). Thử tải lại trang truyện.'
     }
     return 'Lỗi khi mở chương tiếp theo: ' + (m || 'không xác định') + '. Vui lòng chuyển thủ công.'

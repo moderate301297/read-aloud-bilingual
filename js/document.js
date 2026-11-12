@@ -73,7 +73,7 @@ function TabSource() {
         // Same discarded-tab recovery as getTexts: the novel tab can sit idle after the
         // player loads but before the user hits play, long enough for Memory Saver to
         // kill its content script before this first call ever goes out.
-        if (!sourceTabId || !/^(A listener indicated|Could not establish)/.test(err.message)) throw err
+        if (!sourceTabId || !isDisconnectedError(err)) throw err
         if (!await reviveSourceTab()) throw err
         return await sendToSource({method: "getCurrentIndex"})
       }
@@ -95,7 +95,7 @@ function TabSource() {
         // that error gets swallowed upstream (readCurrent's .catch(()=>null))
         // and playback just stops, never attempting auto-next. Revive the tab
         // once and retry before giving up.
-        if (index === 0 || !sourceTabId || !/^(A listener indicated|Could not establish)/.test(err.message)) throw err
+        if (index === 0 || !sourceTabId || !isDisconnectedError(err)) throw err
         if (!await reviveSourceTab()) throw err
         texts = await sendToSource({method: "getTexts", args: [index, quietly]})
       }
@@ -106,7 +106,7 @@ function TabSource() {
       if (!autoNextChapter) return null
 
       const nextUrl = await sendToSource({method: "getNextPageUrl"}).catch(async err => {
-        if (!/^(A listener indicated|Could not establish)/.test(err.message) || !await reviveSourceTab()) return null
+        if (!isDisconnectedError(err) || !await reviveSourceTab()) return null
         return sendToSource({method: "getNextPageUrl"}).catch(() => null)
       })
       if (!nextUrl) {
@@ -288,7 +288,7 @@ function TabSource() {
     const result = await brapi.tabs.sendMessage(tabId, message)
       .catch(err => {
         brapi.storage.local.remove("contentScriptTabId")
-        if (/^(A listener indicated|Could not establish)/.test(err.message)) throw new Error(err.message + " " + message.method)
+        if (isDisconnectedError(err)) throw new Error(err.message + " " + message.method)
         throw err
       })
     if (result && result.error) throw result.error
@@ -325,7 +325,7 @@ function TabSource() {
     message.dest = "pdfViewer"
     const result = await brapi.runtime.sendMessage(message)
       .catch(err => {
-        if (/^(A listener indicated|Could not establish)/.test(err.message)) throw new Error(err.message + " " + message.method)
+        if (isDisconnectedError(err)) throw new Error(err.message + " " + message.method)
         throw err
       })
     if (result && result.error) throw result.error

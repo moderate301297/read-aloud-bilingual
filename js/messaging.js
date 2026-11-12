@@ -109,6 +109,19 @@ function registerMessageListener(name, handlers) {
   }
 }
 
+// True when a tabs.sendMessage/onMessage error means the receiving end is
+// gone or died mid-request — e.g. the tab's content script was discarded by
+// Chrome Memory Saver / Android Kiwi's background-tab suspension. Besides the
+// two "never connected" errors, Chrome also throws "The message port closed
+// before a response was received." when the tab dies *while* a request that
+// used the async sendResponse pattern (return true) was in flight — more
+// likely the longer a tab has sat backgrounded, e.g. during a long
+// auto-next listening session. Callers use this to decide whether to revive
+// the source tab and retry instead of failing the whole operation.
+function isDisconnectedError(err) {
+  return !!err && /^(A listener indicated|Could not establish|The message port closed)/.test(err.message)
+}
+
 function errorToJson(err) {
   if (err instanceof Error) {
     return {
